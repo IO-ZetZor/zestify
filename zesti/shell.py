@@ -158,7 +158,7 @@ def shell_open(
     args: Namespace,
     run: Callable[..., str] = _default_run,
 ) -> int:
-    surface = getattr(args, "surface", None)
+    surface = getattr(args, "SURFACE", None) or getattr(args, "surface", None)
     if not surface:
         return EXIT_RUNTIME
     run(
