@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Compatibility entry point: ``zestify``.
+
+Silently normalizes the legacy flat ``zestify`` interface into the canonical
+``zesti`` command tree and delegates to the same ``zesti.cli.main()`` as
+``bin/zesti``. No command implementation, no deprecation warning, no extra
+stdout/stderr beyond what the canonical command produces.
+"""
+
+import os
+import sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO not in sys.path:
+    sys.path.insert(0, REPO)
+
+from zesti.cli import main  # noqa: E402
+from zesti.compat import normalize_legacy_args  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main(normalize_legacy_args(sys.argv[1:])))
