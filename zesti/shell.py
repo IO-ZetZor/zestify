@@ -67,6 +67,11 @@ def list_instances(
     return [entry for entry in data if isinstance(entry, dict)]
 
 
+_ZESTI_BIN = os.path.realpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin", "zesti")
+)
+
+
 def start_shell(
     args: Namespace,
     run: Callable[..., str] = _default_run,
@@ -75,11 +80,16 @@ def start_shell(
     """Start the Quickshell ``zestify`` instance detached.
 
     An already-running instance counts as success (no duplicate launch).
+    Passes ``ZESTI_BIN`` into Quickshell's environment so QML-side
+    :mod:`zesti.wallpaper` can find the ``zesti`` executable via
+    ``Quickshell.env("ZESTI_BIN")`` even when PATH is minimal.
     """
     instances = list_instances(run=run)
     if instances:
         return EXIT_OK
-    out = run(["qs", "-c", CONFIG, "-n", "-d"], check=False)
+    env = dict(os.environ)
+    env["ZESTI_BIN"] = _ZESTI_BIN
+    out = run(["qs", "-c", CONFIG, "-n", "-d"], env=env, check=False)
     print(out, end="")
     return EXIT_OK
 
@@ -211,5 +221,7 @@ def shell_restart(
         if not list_instances(run=run):
             break
         sleep(min(0.25, max(0.0, deadline - monotonic())))
-    run(["qs", "-c", CONFIG, "-n", "-d"], check=False)
+    env = dict(os.environ)
+    env["ZESTI_BIN"] = _ZESTI_BIN
+    run(["qs", "-c", CONFIG, "-n", "-d"], env=env, check=False)
     return EXIT_OK
