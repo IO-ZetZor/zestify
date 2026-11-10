@@ -72,6 +72,13 @@ _TONE_MAP = {
     "on_background": ("n1", 90, 10),
     "error": ("error", 60, 40),
     "on_error": ("n1", 10, 95),
+    "on_surface_variant": ("n2", 80, 30),
+    "outline": ("n2", 60, 50),
+    "surface_container_low": ("n1", 6, 96),
+    "surface_container": ("n1", 10, 94),
+    "surface_container_high": ("n1", 12, 92),
+    "surface_container_highest": ("n1", 17, 90),
+    "primary_dim": ("a1", 72, 35),
 }
 
 
@@ -198,7 +205,7 @@ def generate_palette(
 
             temp_dir = _tempfile.TemporaryDirectory(prefix="zesti-palette-")
             frame = Path(temp_dir.name) / "frame.png"
-            rc = run(["ffmpeg", "-y", "-hide-banner", "-loglevel", "error",
+            rc = run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                       "-i", str(source), "-frames:v", "1", str(frame)])
             if rc != 0 or not frame.exists():
                 raise PaletteError("ffmpeg frame extraction failed")
@@ -270,6 +277,14 @@ def normalize_matugen(
         if not isinstance(color, str):
             raise PaletteError(f"non-string color for role {matugen_role}")
         result[camel] = color.lstrip("#")
+
+    # Keep additional Material roles, including the shell's surface containers.
+    for role, entry in colors.items():
+        if role in ROLE_MAP or not isinstance(entry, dict):
+            continue
+        selected = entry.get(mode)
+        if isinstance(selected, dict) and isinstance(selected.get("color"), str):
+            result[slug_role(role)] = selected["color"].lstrip("#")
 
     # term0 .. term15 from base16.base00 .. base0f.
     for i in range(16):

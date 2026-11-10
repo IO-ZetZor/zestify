@@ -11,12 +11,28 @@ Singleton {
 
     property string surface: ""
     property string owner: ""
+    property string notificationsOwner: ""
 
     function open(name, screenName) {
         if (!name || !name.length)
             return;
+        if (name === "notifications") {
+            openNotifications(screenName);
+            return;
+        }
+        closeNotifications();
         root.surface = name;
         root.owner = screenName || "";
+    }
+
+    function openNotifications(screenName) {
+        root.close();
+        root.notificationsOwner = screenName || "";
+    }
+
+    function closeNotifications(screenName) {
+        if (!screenName || root.notificationsOwner === screenName)
+            root.notificationsOwner = "";
     }
 
     function close(screenName) {

@@ -4,7 +4,7 @@ var MAX_HISTORY = 100;
 
 function add(history, entry, max) {
     const limit = max > 0 ? max : MAX_HISTORY;
-    const next = [entry].concat(history || []);
+    const next = [entry].concat((history || []).filter(item => item && item.id !== entry.id));
     return next.slice(0, limit);
 }
 

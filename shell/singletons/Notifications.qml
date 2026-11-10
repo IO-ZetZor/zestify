@@ -4,19 +4,21 @@ import QtQuick
 import Quickshell
 import Quickshell.Services.Notifications
 import "../lib/notifications.js" as NotificationLib
+import "."
 
 Singleton {
     id: root
 
     property var history: []
     property var popups: []
-    property bool dnd: false
+    readonly property bool dnd: Config.notifications.dnd
 
     property int _nextLocalId: -1
+    property var _live: ({})
 
     readonly property int maxHistory: 100
     readonly property int maxPopups: 5
-    readonly property int defaultTimeout: 5000
+    readonly property int defaultTimeout: Config.notifications.timeout
 
     NotificationServer {
         id: server
@@ -30,7 +32,7 @@ Singleton {
         actionsSupported: true
         actionIconsSupported: true
         imageSupported: true
-        inlineReplySupported: true
+        inlineReplySupported: false
 
         onNotification: (notification) => root.addServerNotification(notification)
     }
@@ -46,23 +48,51 @@ Singleton {
             time: Date.now(),
             image: notification.image || "",
             notification: notification,
-            expires: notification.expireTimeout > 0
+            expires: notification.expireTimeout === 0 ? 0 : notification.expireTimeout > 0
                 ? Math.max(1000, notification.expireTimeout)
-                : root.defaultTimeout
+                : (notification.urgency === NotificationUrgency.Critical ? 0 : root.defaultTimeout)
         };
     }
 
     function addServerNotification(notification) {
         if (!notification)
             return;
+        notification.tracked = true;
         const entry = root.entryFor(notification);
-        root.history = NotificationLib.add(root.history, entry, root.maxHistory);
-        if (NotificationLib.shouldPopup(root.dnd))
-            root.popups = [entry].concat(root.popups).slice(0, root.maxPopups);
+        root.storeEntry(entry);
+        if (root._live[entry.id] === notification) return;
+        root._live[entry.id] = notification;
+
+        const update = function() {
+            const fresh = root.entryFor(notification);
+            root.history = root.history.map(item => item.id === entry.id ? fresh : item);
+            root.popups = root.popups.map(item => item.id === entry.id ? fresh : item);
+        };
+        notification.summaryChanged.connect(update);
+        notification.bodyChanged.connect(update);
+        notification.appNameChanged.connect(update);
+        notification.appIconChanged.connect(update);
+        notification.imageChanged.connect(update);
+        notification.urgencyChanged.connect(update);
+        notification.expireTimeoutChanged.connect(update);
 
         notification.closed.connect(function() {
             root.removePopup(entry.id);
+            root.history = root.history.map(item => item.id === entry.id
+                ? Object.assign({}, item, {notification: null, image: ""}) : item);
+            delete root._live[entry.id];
         });
+    }
+
+    function storeEntry(entry) {
+        const evicted = root.history.filter(item => item && item.id !== entry.id).slice(root.maxHistory - 1);
+        root.history = NotificationLib.add(root.history, entry, root.maxHistory);
+        if (NotificationLib.shouldPopup(root.dnd))
+            root.popups = NotificationLib.add(root.popups, entry, root.maxPopups);
+        for (const old of evicted) {
+            root.removePopup(old.id);
+            if (old.notification) old.notification.expire();
+        }
     }
 
     function notify(title, body, urgency, appName, expires) {
@@ -77,11 +107,10 @@ Singleton {
             time: Date.now(),
             image: "",
             notification: null,
-            expires: expires > 0 ? expires : root.defaultTimeout
+            expires: expires === 0 ? 0 : (expires > 0 ? expires
+                : (String(urgency).toLowerCase() === "critical" ? 0 : root.defaultTimeout))
         };
-        root.history = NotificationLib.add(root.history, entry, root.maxHistory);
-        if (NotificationLib.shouldPopup(root.dnd))
-            root.popups = [entry].concat(root.popups).slice(0, root.maxPopups);
+        root.storeEntry(entry);
         return id;
     }
 
@@ -98,8 +127,9 @@ Singleton {
     }
 
     function clear() {
-        for (let i = 0; i < root.history.length; i++) {
-            const entry = root.history[i];
+        const entries = root.history.slice();
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
             if (entry && entry.notification)
                 entry.notification.dismiss();
         }
@@ -108,10 +138,19 @@ Singleton {
     }
 
     function toggleDnd() {
-        root.dnd = !root.dnd;
+        Config.setValue("notifications.dnd", !root.dnd);
     }
 
     function expirePopup(id) {
+        const entry = root.history.find(item => item && item.id === id);
         root.removePopup(id);
+        if (entry && entry.notification) entry.notification.expire();
+    }
+
+    function invokeAction(id, identifier) {
+        const entry = root.history.find(item => item && item.id === id);
+        if (!entry || !entry.notification) return;
+        const action = entry.notification.actions.find(item => item.identifier === identifier);
+        if (action) action.invoke();
     }
 }

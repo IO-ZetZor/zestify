@@ -2,8 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
+import "../components"
+import "../lib/usage.js" as Usage
 
 SurfaceFrame {
     id: root
@@ -13,290 +14,628 @@ SurfaceFrame {
     property var motion
     property var processes: []
     property real uptimeSeconds: 0
+    property string sortBy: "cpu"
+    property bool sampling: true
+
+    readonly property real memoryPercent: stats ? Usage.percent(stats.ramUsed, stats.ramTotal) : 0
+    readonly property var cpuHistory: stats ? stats.historyCpu : []
+    readonly property var ramHistory: stats ? stats.historyRam : []
+    readonly property var downloadHistory: stats ? stats.historyRx : []
+    readonly property var uploadHistory: stats ? stats.historyTx : []
+    readonly property int capacity: stats ? stats.historyCapacity : 60
+    readonly property int sampleInterval: stats ? stats.interval : 1000
+    readonly property real networkScale: Usage.scaleFor(downloadHistory, uploadHistory)
+    readonly property var gpuDevices: stats ? stats.gpuDevices : []
+    readonly property real processCpuScale: Math.max(100, Usage.peak(processes.map(item => item.cpu)))
+    readonly property color uploadColour: root.theme.pick("tertiary", "c3c5dd")
 
     title: "System"
 
     function formatBytes(value) {
-        if (!value || value <= 0)
+        if (!(value > 0))
             return "0 B";
-        if (value >= 1048576)
-            return (value / 1048576).toFixed(1) + " MB";
-        if (value >= 1024)
-            return (value / 1024).toFixed(1) + " KB";
-        return Math.round(value) + " B";
+        const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        const index = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
+        return (value / Math.pow(1024, index)).toFixed(index > 0 ? 1 : 0) + " " + units[index];
     }
 
-    function formatRate(value) {
-        return root.formatBytes(value) + "/s";
-    }
+    function formatRate(value) { return root.formatBytes(value) + "/s"; }
 
     function formatUptime(seconds) {
-        if (!seconds || seconds <= 0)
-            return "--";
+        if (!(seconds > 0)) return "—";
         const days = Math.floor(seconds / 86400);
         const hours = Math.floor((seconds % 86400) / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        if (days > 0)
-            return days + "d " + hours + "h";
-        if (hours > 0)
-            return hours + "h " + minutes + "m";
-        return minutes + "m";
+        return days > 0 ? days + "d " + hours + "h" : (hours > 0 ? hours + "h " + minutes + "m" : minutes + "m");
     }
 
     function parseProcesses(text) {
         const result = [];
-        const lines = String(text || "").split("\n");
-        for (let i = 0; i < lines.length && result.length < 7; i++) {
-            const match = lines[i].match(/^\s*(.+?)\s+([\d.]+)\s+([\d.]+)\s*$/);
-            if (!match)
-                continue;
-            result.push({
-                name: match[1].trim(),
-                cpu: Number(match[2]),
-                mem: Number(match[3])
-            });
+        for (const line of String(text || "").split("\n")) {
+            const match = line.match(/^\s*(.+?)\s+([\d.]+)\s+([\d.]+)\s*$/);
+            if (match && result.length < 6)
+                result.push({ name: match[1].trim(), cpu: Number(match[2]), mem: Number(match[3]) });
         }
         return result;
     }
 
-    component Sparkline: Item {
-        id: spark
-
-        property var values: []
-        property real maxValue: 100
-        property color colour
-        property int capacity: 48
-
-        function valueAt(index) {
-            const start = Math.max(0, spark.values.length - spark.capacity);
-            return spark.values[start + index] || 0;
-        }
-
-        Repeater {
-            model: spark.capacity
-
-            delegate: Rectangle {
-                required property int index
-                x: index * (spark.width / spark.capacity)
-                width: Math.max(1, spark.width / spark.capacity - 1)
-                height: Math.max(1, Math.min(1, spark.valueAt(index) / Math.max(0.0001, spark.maxValue)) * spark.height)
-                anchors.bottom: parent.bottom
-                radius: 0.5
-                color: spark.colour
-            }
-        }
+    function refreshProcesses() {
+        if (root.sampling && !processList.running)
+            processList.running = true;
     }
 
-    component StatCard: Rectangle {
-        id: card
+    onSortByChanged: refreshProcesses()
 
+    component MetricCard: Rectangle {
+        id: card
         property string label
+        property string glyph
         property string value
-        property string detail: ""
+        property string detail
+        property bool memory: false
         property var values: []
-        property real maxValue: 100
-        property color tint
+        property real maximum: 100
+        property int hoveredCore: -1
+        readonly property var cores: root.stats ? root.stats.cpuCores : []
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 78 * root.s
-        radius: root.theme.r.tile * root.s
-        color: root.theme.tileBg
+        Layout.preferredHeight: 228 * root.s
+        radius: 15 * root.s
+        color: root.theme.withAlpha(root.theme.surfaceHigh, 0.78)
         border.width: 1
-        border.color: root.theme.border
+        border.color: root.theme.withAlpha(root.theme.outline, 0.16)
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: root.theme.sp.m * root.s
-            spacing: 1 * root.s
+            anchors.margins: 12 * root.s
+            spacing: 5 * root.s
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 4 * root.s
-
+                spacing: 6 * root.s
+                Text {
+                    text: card.glyph
+                    color: root.theme.accent
+                    font.family: root.theme.iconFont
+                    font.pixelSize: 15 * root.s
+                }
                 Text {
                     Layout.fillWidth: true
                     text: card.label
-                    color: root.theme.dim
-                    font.family: root.theme.fontFamily
-                    font.pixelSize: root.theme.fs.label * root.s
-                }
-
-                Text {
-                    text: card.value
                     color: root.theme.cream
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: 12 * root.s
+                    font.weight: Font.Medium
+                }
+                Text {
+                    text: "peak " + (card.memory ? Math.round(Usage.percent(Usage.peak(card.values), card.maximum)) : Math.round(Usage.peak(card.values))) + "%"
+                    color: root.theme.faint
                     font.family: root.theme.monoFont
-                    font.pixelSize: root.theme.fs.meta * root.s
+                    font.pixelSize: 9 * root.s
                 }
             }
 
             Text {
-                visible: card.detail.length > 0
-                text: card.detail
-                color: root.theme.faint
-                font.family: root.theme.fontFamily
-                font.pixelSize: root.theme.fs.label * root.s
-                elide: Text.ElideRight
+                text: card.value
+                color: root.theme.cream
+                font.family: root.theme.monoFont
+                font.pixelSize: 32 * root.s
+                font.weight: Font.DemiBold
+            }
+            Text {
                 Layout.fillWidth: true
+                text: card.detail
+                color: root.theme.dim
+                font.family: root.theme.fontFamily
+                font.pixelSize: 10 * root.s
+                elide: Text.ElideRight
             }
 
-            Sparkline {
+            UsageChart {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 14 * root.s
+                Layout.minimumHeight: 70 * root.s
+                theme: root.theme
+                s: root.s
                 values: card.values
-                maxValue: card.maxValue
-                colour: card.tint
+                maximum: card.maximum
+                capacity: root.capacity
+                sampleInterval: root.sampleInterval
+                seriesName: card.label
+                colour: root.theme.accent
+                topLabel: card.memory ? root.formatBytes(card.maximum) : "100%"
+                bottomLabel: card.memory ? "0" : "0%"
+                formatter: card.memory ? root.formatBytes : null
+            }
+
+            RowLayout {
+                visible: !card.memory
+                Layout.fillWidth: true
+                Layout.preferredHeight: 20 * root.s
+                spacing: 3 * root.s
+                Repeater {
+                    model: card.cores.slice(0, 24)
+                    delegate: Rectangle {
+                        id: core
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 3 * root.s
+                        color: root.theme.withAlpha(root.theme.outline, 0.12)
+                        clip: true
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: Math.max(root.s, parent.height * core.modelData.percent / 100)
+                            radius: parent.radius
+                            color: root.theme.withAlpha(root.theme.accent, 0.65)
+                            Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: core.modelData.name.slice(3)
+                            color: root.theme.dim
+                            font.family: root.theme.monoFont
+                            font.pixelSize: 7 * root.s
+                        }
+                        HoverHandler {
+                            onHoveredChanged: card.hoveredCore = hovered ? core.index : -1
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: card.memory
+                Layout.fillWidth: true
+                Layout.preferredHeight: 8 * root.s
+                radius: height / 2
+                color: root.theme.withAlpha(root.theme.outline, 0.2)
+                Rectangle {
+                    width: parent.width * root.memoryPercent / 100
+                    height: parent.height
+                    radius: parent.radius
+                    color: root.theme.accent
+                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: card.memory
+                    ? (root.stats ? root.formatBytes(Math.max(0, root.stats.ramTotal - root.stats.ramUsed)) + " available · " + root.formatBytes(root.stats.swapUsed) + " swap" : "Waiting for memory data")
+                    : (card.hoveredCore >= 0 ? "Thread " + card.cores[card.hoveredCore].name.slice(3) + " · " + Math.round(card.cores[card.hoveredCore].percent) + "%"
+                        : card.cores.length + " logical threads" + (card.cores.length > 24 ? " · showing first 24" : ""))
+                color: root.theme.faint
+                font.family: root.theme.monoFont
+                font.pixelSize: 9 * root.s
+                elide: Text.ElideRight
             }
         }
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 7 * root.s
-
+    component DetailTile: Rectangle {
+        id: tile
+        property string label
+        property string value
+        property string glyph
+        Layout.fillWidth: true
+        Layout.preferredHeight: 47 * root.s
+        radius: 10 * root.s
+        color: root.theme.withAlpha(root.theme.surfaceHigh, 0.6)
         RowLayout {
-            Layout.fillWidth: true
-            spacing: 7 * root.s
-
-            StatCard {
-                label: "CPU"
-                value: root.stats ? Math.round(root.stats.cpuPercent) + "%" : "--"
-                values: root.stats ? root.stats.historyCpu : []
-                maxValue: 100
-                tint: root.theme.accent
+            anchors.fill: parent
+            anchors.margins: 9 * root.s
+            spacing: 9 * root.s
+            Text {
+                text: tile.glyph
+                font.family: root.theme.iconFont
+                font.pixelSize: 20 * root.s
+                color: root.theme.accentDim
             }
-
-            StatCard {
-                label: "Memory"
-                value: root.stats && root.stats.ramTotal > 0
-                    ? (root.stats.ramUsed / 1073741824).toFixed(1) + " / " + (root.stats.ramTotal / 1073741824).toFixed(1) + " GB"
-                    : "--"
-                values: root.stats ? root.stats.historyRam : []
-                maxValue: root.stats && root.stats.ramTotal > 0 ? root.stats.ramTotal : 1
-                tint: root.theme.accentDim
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 7 * root.s
-
-            StatCard {
-                label: "Network"
-                value: root.stats ? root.formatRate(root.stats.netRate) : "--"
-                detail: root.stats
-                    ? "received " + root.formatBytes(root.stats.rxBytes) + " since boot"
-                    : ""
-                values: root.stats ? root.stats.historyNet : []
-                maxValue: {
-                    if (!root.stats || !root.stats.historyNet || root.stats.historyNet.length === 0)
-                        return 1;
-                    return Math.max(1, Math.max.apply(null, root.stats.historyNet));
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1 * root.s
+                Text {
+                    text: tile.label
+                    color: root.theme.faint
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: 9 * root.s
                 }
-                tint: root.theme.accent
-            }
-
-            StatCard {
-                label: "Package temp"
-                value: root.stats && root.stats.gpuTemp > 0
-                    ? root.stats.gpuTemp.toFixed(0) + "°C"
-                    : "--"
-                values: []
-                tint: root.theme.accentDim
-            }
-
-            StatCard {
-                label: "Battery"
-                value: root.stats && root.stats.batteryPercent > 0
-                    ? Math.round(root.stats.batteryPercent) + "%"
-                    : "--"
-                detail: root.stats ? root.stats.batteryTime : ""
-                values: []
-                tint: root.theme.accent
-            }
-
-            StatCard {
-                label: "Uptime"
-                value: root.formatUptime(root.uptimeSeconds)
-                values: []
-                tint: root.theme.accentDim
+                Text {
+                    Layout.fillWidth: true
+                    text: tile.value
+                    elide: Text.ElideRight
+                    color: root.theme.cream
+                    font.family: root.theme.monoFont
+                    font.pixelSize: 13 * root.s
+                }
             }
         }
+    }
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6 * root.s
+    component GpuCard: Rectangle {
+        id: card
+        property var gpu
+        readonly property bool hasUsage: gpu.utilization !== null
+        readonly property bool hasMemory: gpu.memoryUsed !== null && gpu.memoryTotal > 0
+        readonly property bool hasTemperature: gpu.temperature !== null
+        readonly property bool compact: !hasTemperature && !hasMemory
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: (compact ? 116 : hasTemperature && hasMemory ? 164 : 142) * root.s
+        radius: 15 * root.s
+        color: root.theme.withAlpha(root.theme.surfaceHigh, 0.78)
+        border.width: 1
+        border.color: root.theme.withAlpha(root.theme.outline, 0.16)
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12 * root.s
+            spacing: 8 * root.s
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 7 * root.s
+                Text {
+                    text: "󰢮"
+                    color: root.theme.accent
+                    font.family: root.theme.iconFont
+                    font.pixelSize: 15 * root.s
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: card.gpu.name
+                    elide: Text.ElideRight
+                    color: root.theme.cream
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: 12 * root.s
+                    font.weight: Font.Medium
+                }
+                Text {
+                    text: card.gpu.driver || card.gpu.vendor
+                    color: root.theme.faint
+                    font.family: root.theme.monoFont
+                    font.pixelSize: 9 * root.s
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 15 * root.s
+                ColumnLayout {
+                    Layout.preferredWidth: (card.compact ? 150 : 190) * root.s
+                    Layout.maximumWidth: (card.compact ? 150 : 190) * root.s
+                    spacing: 5 * root.s
+                    Text {
+                        text: card.gpu.status === "suspended" ? "Sleeping"
+                            : card.hasUsage ? Math.round(card.gpu.utilization) + "%" : "Unavailable"
+                        color: root.theme.cream
+                        font.family: root.theme.monoFont
+                        font.pixelSize: (card.hasUsage ? (card.compact ? 26 : 30) : 18) * root.s
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        text: card.gpu.status === "suspended" ? "Power saving"
+                            : card.gpu.source || "Usage telemetry unavailable"
+                        color: root.theme.faint
+                        font.family: root.theme.fontFamily
+                        font.pixelSize: 9 * root.s
+                    }
+                    Text {
+                        visible: card.hasTemperature
+                        text: "Temperature  " + Math.round(card.gpu.temperature) + "°C"
+                        color: root.theme.dim
+                        font.family: root.theme.monoFont
+                        font.pixelSize: 9 * root.s
+                    }
+                    Text {
+                        visible: card.hasMemory
+                        Layout.fillWidth: true
+                        text: root.formatBytes(card.gpu.memoryUsed) + " / " + root.formatBytes(card.gpu.memoryTotal)
+                        color: root.theme.dim
+                        font.family: root.theme.monoFont
+                        font.pixelSize: 9 * root.s
+                        elide: Text.ElideRight
+                    }
+                    Rectangle {
+                        visible: card.hasMemory
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 4 * root.s
+                        radius: height / 2
+                        color: root.theme.withAlpha(root.theme.outline, 0.16)
+                        Rectangle {
+                            width: parent.width * Usage.percent(card.gpu.memoryUsed, card.gpu.memoryTotal) / 100
+                            height: parent.height
+                            radius: parent.radius
+                            color: root.uploadColour
+                        }
+                    }
+                }
+                UsageChart {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    theme: root.theme
+                    s: root.s
+                    values: card.gpu.history
+                    maximum: 100
+                    capacity: root.capacity
+                    sampleInterval: root.sampleInterval
+                    seriesName: card.gpu.name
+                    colour: root.theme.accent
+                }
+            }
+        }
+    }
+
+    component SortChip: Rectangle {
+        id: chip
+        property string key
+        property string label
+        implicitWidth: chipLabel.implicitWidth + 14 * root.s
+        implicitHeight: 22 * root.s
+        radius: height / 2
+        color: root.theme.withAlpha(root.sortBy === chip.key ? root.theme.accent : root.theme.outline, root.sortBy === chip.key ? 0.2 : 0.08)
+        Text {
+            id: chipLabel
+            anchors.centerIn: parent
+            text: chip.label
+            color: root.sortBy === chip.key ? root.theme.accent : root.theme.faint
+            font.family: root.theme.fontFamily
+            font.pixelSize: 9 * root.s
+        }
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: root.sortBy = chip.key }
+    }
+
+    Flickable {
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: dashboard.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        ColumnLayout {
+            id: dashboard
+            width: parent.width
+            spacing: 9 * root.s
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 9 * root.s
+                MetricCard {
+                    label: "Processor"
+                    glyph: "󰍛"
+                    value: root.stats ? Math.round(root.stats.cpuPercent) + "%" : "—"
+                    detail: "Total CPU usage"
+                    values: root.cpuHistory
+                }
+                MetricCard {
+                    label: "Memory"
+                    glyph: "󰘚"
+                    value: root.stats && root.stats.ramTotal > 0 ? Math.round(root.memoryPercent) + "%" : "—"
+                    detail: root.stats ? root.formatBytes(root.stats.ramUsed) + " of " + root.formatBytes(root.stats.ramTotal) : "Waiting for memory data"
+                    memory: true
+                    values: root.ramHistory
+                    maximum: root.stats ? Math.max(1, root.stats.ramTotal) : 1
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 133 * root.s + speedTest.implicitHeight
+                radius: 15 * root.s
+                color: root.theme.withAlpha(root.theme.surfaceHigh, 0.78)
+                border.width: 1
+                border.color: root.theme.withAlpha(root.theme.outline, 0.16)
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12 * root.s
+                    spacing: 7 * root.s
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16 * root.s
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Network traffic"
+                            color: root.theme.cream
+                            font.family: root.theme.fontFamily
+                            font.pixelSize: 12 * root.s
+                            font.weight: Font.Medium
+                        }
+                        Text {
+                            text: "↓ " + (root.stats ? root.formatRate(root.stats.rxRate) : "—")
+                            color: root.theme.accent
+                            font.family: root.theme.monoFont
+                            font.pixelSize: 12 * root.s
+                        }
+                        Text {
+                            text: "↑ " + (root.stats ? root.formatRate(root.stats.txRate) : "—")
+                            color: root.uploadColour
+                            font.family: root.theme.monoFont
+                            font.pixelSize: 12 * root.s
+                        }
+                    }
+                    UsageChart {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        theme: root.theme
+                        s: root.s
+                        values: root.downloadHistory
+                        secondaryValues: root.uploadHistory
+                        maximum: root.networkScale
+                        capacity: root.capacity
+                        sampleInterval: root.sampleInterval
+                        colour: root.theme.accent
+                        secondaryColour: root.uploadColour
+                        seriesName: "↓"
+                        secondaryName: "↑"
+                        topLabel: root.formatRate(root.networkScale)
+                        bottomLabel: "0"
+                        formatter: root.formatRate
+                    }
+                    SpeedTestControl {
+                        id: speedTest
+                        Layout.fillWidth: true
+                        theme: root.theme
+                        s: root.s
+                    }
+                }
+            }
 
             Text {
-                Layout.fillWidth: true
-                text: "Top processes"
+                text: "Graphics"
                 color: root.theme.cream
                 font.family: root.theme.fontFamily
-                font.pixelSize: root.theme.fs.title * root.s
+                font.pixelSize: 12 * root.s
                 font.weight: Font.Medium
             }
 
-            Text {
-                text: "CPU %   RAM %"
-                color: root.theme.faint
-                font.family: root.theme.monoFont
-                font.pixelSize: root.theme.fs.label * root.s
+            Repeater {
+                model: root.gpuDevices.length
+                delegate: GpuCard {
+                    required property int index
+                    gpu: root.gpuDevices[index]
+                }
             }
-        }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            radius: root.theme.r.tile * root.s
-            color: root.theme.tileBg
-            border.width: 1
-            border.color: root.theme.border
-            clip: true
+            Text {
+                visible: root.gpuDevices.length === 0
+                text: root.stats ? root.stats.gpuStatus : "Detecting GPUs…"
+                color: root.theme.faint
+                font.family: root.theme.fontFamily
+                font.pixelSize: 10 * root.s
+            }
 
-            ListView {
-                anchors.fill: parent
-                anchors.margins: root.theme.sp.m * root.s
-                model: root.processes
-                spacing: 3 * root.s
-                clip: true
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 9 * root.s
+                DetailTile {
+                    label: "CPU temperature"
+                    value: root.stats && root.stats.cpuTemp > 0 ? Math.round(root.stats.cpuTemp) + "°C" : "Unavailable"
+                    glyph: "󰔏"
+                }
+                DetailTile {
+                    label: "Battery"
+                    value: root.stats && root.stats.batteryPercent > 0 ? Math.round(root.stats.batteryPercent) + "%" : "Unavailable"
+                    glyph: "󰁹"
+                }
+                DetailTile {
+                    label: "Uptime"
+                    value: root.formatUptime(root.uptimeSeconds)
+                    glyph: "󰥔"
+                }
+            }
 
-                delegate: RowLayout {
-                    required property var modelData
-                    width: ListView.view.width
-                    spacing: 6 * root.s
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 5 * root.s
+                Text {
+                    Layout.fillWidth: true
+                    text: "Busy processes"
+                    color: root.theme.cream
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: 12 * root.s
+                    font.weight: Font.Medium
+                }
+                SortChip { key: "cpu"; label: "CPU avg" }
+                SortChip { key: "mem"; label: "Memory" }
+            }
 
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2 * root.s
+                RowLayout {
+                    Layout.fillWidth: true
                     Text {
                         Layout.fillWidth: true
-                        text: modelData.name
-                        color: root.theme.cream
-                        font.family: root.theme.monoFont
-                        font.pixelSize: root.theme.fs.meta * root.s
-                        elide: Text.ElideRight
-                    }
-
-                    Text {
-                        text: modelData.cpu.toFixed(1) + "%"
-                        color: root.theme.dim
-                        font.family: root.theme.monoFont
-                        font.pixelSize: root.theme.fs.meta * root.s
-                        horizontalAlignment: Text.AlignRight
-                        Layout.preferredWidth: 52 * root.s
-                    }
-
-                    Text {
-                        text: modelData.mem.toFixed(1) + "%"
+                        text: "PROCESS"
                         color: root.theme.faint
                         font.family: root.theme.monoFont
-                        font.pixelSize: root.theme.fs.meta * root.s
-                        horizontalAlignment: Text.AlignRight
-                        Layout.preferredWidth: 52 * root.s
+                        font.pixelSize: 8 * root.s
                     }
+                    Text {
+                        Layout.preferredWidth: 124 * root.s
+                        text: "CPU AVG"
+                        color: root.theme.faint
+                        font.family: root.theme.monoFont
+                        font.pixelSize: 8 * root.s
+                    }
+                    Text {
+                        Layout.preferredWidth: 124 * root.s
+                        text: "MEMORY"
+                        color: root.theme.faint
+                        font.family: root.theme.monoFont
+                        font.pixelSize: 8 * root.s
+                    }
+                }
+                Repeater {
+                    model: root.processes
+                    delegate: RowLayout {
+                        id: processRow
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 23 * root.s
+                        spacing: 10 * root.s
+                        Text {
+                            Layout.fillWidth: true
+                            text: processRow.modelData.name
+                            color: root.theme.dim
+                            font.family: root.theme.monoFont
+                            font.pixelSize: 10 * root.s
+                            elide: Text.ElideRight
+                        }
+                        Repeater {
+                            model: ["cpu", "mem"]
+                            delegate: RowLayout {
+                                id: meter
+                                required property string modelData
+                                readonly property real value: processRow.modelData[meter.modelData]
+                                Layout.preferredWidth: 124 * root.s
+                                Layout.minimumWidth: 124 * root.s
+                                Layout.maximumWidth: 124 * root.s
+                                Layout.fillWidth: false
+                                spacing: 7 * root.s
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 4 * root.s
+                                    radius: height / 2
+                                    color: root.theme.withAlpha(root.theme.outline, 0.16)
+                                    Rectangle {
+                                        width: parent.width * Math.min(1, meter.value / (meter.modelData === "cpu" ? root.processCpuScale : 100))
+                                        height: parent.height
+                                        radius: parent.radius
+                                        color: meter.modelData === "cpu" ? root.theme.accent : root.uploadColour
+                                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                                Text {
+                                    Layout.preferredWidth: 48 * root.s
+                                    text: meter.value.toFixed(1) + "%"
+                                    color: root.theme.dim
+                                    horizontalAlignment: Text.AlignRight
+                                    font.family: root.theme.monoFont
+                                    font.pixelSize: 10 * root.s
+                                }
+                            }
+                        }
+                    }
+                }
+                Text {
+                    visible: root.processes.length === 0
+                    text: "Waiting for process data…"
+                    color: root.theme.faint
+                    font.family: root.theme.fontFamily
+                    font.pixelSize: 10 * root.s
                 }
             }
         }
     }
 
     FileView {
+        id: uptimeFile
         path: "/proc/uptime"
         blockLoading: true
         printErrors: false
@@ -305,18 +644,16 @@ SurfaceFrame {
 
     Process {
         id: processList
-        command: ["sh", "-c", "ps -eo comm=,%cpu=,%mem= --sort=-%cpu | head -7"]
-        stdout: StdioCollector {
-            onStreamFinished: root.processes = root.parseProcesses(text)
-        }
+        command: ["ps", "-eo", "comm=,%cpu=,%mem=", root.sortBy === "mem" ? "--sort=-%mem" : "--sort=-%cpu"]
+        stdout: StdioCollector { onStreamFinished: root.processes = root.parseProcesses(text) }
     }
 
     Timer {
         interval: 3000
         repeat: true
-        running: true
-        onTriggered: if (!processList.running) processList.running = true
+        running: root.sampling && root.visible
+        onTriggered: { root.refreshProcesses(); uptimeFile.reload(); }
     }
 
-    Component.onCompleted: processList.running = true
+    Component.onCompleted: refreshProcesses()
 }

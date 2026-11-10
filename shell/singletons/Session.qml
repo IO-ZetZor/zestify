@@ -21,6 +21,8 @@ Singleton {
     property int lastBatteryWarning: 100
     property bool _hibernating: false
 
+    signal lockStateReceived(bool value)
+
     readonly property bool charging: {
         const device = UPower.displayDevice;
         if (!device)
@@ -83,6 +85,7 @@ Singleton {
 
     function handleLockState(value) {
         locked = Boolean(value);
+        lockStateReceived(locked);
         if (!locked)
             resetIdleMonitors();
     }
@@ -172,9 +175,9 @@ Singleton {
     IdleMonitor {
         id: lockIdle
         timeout: Config.session.lockAfter
-        enabled: root.idleEnabled
+        enabled: Config.session.lockAfter > 0 && root.idleEnabled
         onIsIdleChanged: {
-            if (isIdle && root.idleEnabled)
+            if (isIdle && lockIdle.enabled)
                 root.lock(false);
         }
     }
@@ -182,9 +185,9 @@ Singleton {
     IdleMonitor {
         id: dpmsIdle
         timeout: Config.session.dpmsOffAfter
-        enabled: root.dpmsActive && !root.idleInhibited && !root.idleResetHeld
+        enabled: Config.session.dpmsOffAfter > 0 && root.dpmsActive && !root.idleInhibited && !root.idleResetHeld
         onIsIdleChanged: {
-            if (isIdle && root.dpmsActive && !root.idleInhibited)
+            if (isIdle && dpmsIdle.enabled)
                 root.dpmsOff();
         }
     }
@@ -192,9 +195,9 @@ Singleton {
     IdleMonitor {
         id: suspendIdle
         timeout: Config.session.suspendAfter
-        enabled: !root.idleInhibited && !root.idleResetHeld
+        enabled: Config.session.suspendAfter > 0 && !root.idleInhibited && !root.idleResetHeld
         onIsIdleChanged: {
-            if (isIdle && !root.idleInhibited)
+            if (isIdle && suspendIdle.enabled)
                 Quickshell.execDetached(Config.session.suspendCommand);
         }
     }

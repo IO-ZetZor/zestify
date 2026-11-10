@@ -68,7 +68,7 @@ Item {
     readonly property var surfaceRegistry: ({
         "launcher": { title: "Launcher", width: 620, height: 620, component: launcherSurface },
         "wallpaper": { title: "Wallpaper", width: 760, height: 600, component: wallpaperSurface },
-        "system": { title: "System", width: 680, height: 560, component: systemSurface },
+        "system": { title: "System", width: 820, height: 690, component: systemSurface },
         "media": { title: "Media", width: 640, height: 480, component: mediaSurface },
         "audio": { title: "Audio", width: 660, height: 560, component: audioSurface },
         "calendar": { title: "Calendar", width: 560, height: 540, component: calendarSurface },
@@ -325,6 +325,7 @@ Item {
     PillBody {
         anchors.fill: parent
         theme: root.theme
+        backgroundOpacity: Config.bar.opacity
         cornerRadius: root.metrics.pillRadius + (root.hovering ? 4 * root.s : 0)
     }
 
@@ -346,6 +347,7 @@ Item {
         stats: root.stats
         s: root.s
         showTitle: root.showTitle
+            && (Config.bar.titleOn === "all" || (root.monitor && root.monitor.focused))
         showTray: Config.bar.showTray && root.screen
             && (Config.bar.trayOn === "all"
                 || (Config.bar.trayOn === "primary" && root.screen.name === Config.monitor.primary))
@@ -408,6 +410,8 @@ Item {
             theme: root.theme
             s: root.s
             motion: root.motion
+            dnd: Notifications.dnd
+            onDndToggled: Notifications.toggleDnd()
             onOpenWallpaper: function() { root.openSurface("wallpaper") }
         }
     }

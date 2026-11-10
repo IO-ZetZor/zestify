@@ -6,8 +6,9 @@ QtObject {
     id: root
 
     property var scheme: null
-    readonly property var fallback: Scheme.fallbackScheme()
-    readonly property var c: (scheme && scheme.colours) ? scheme.colours : fallback.colours
+    property string mode: "dark"
+    readonly property var fallback: Scheme.fallbackScheme(mode)
+    readonly property var c: Scheme.coloursFor(scheme, mode)
 
     function pick(key, fallbackHex) {
         const value = c[key] !== undefined
@@ -26,6 +27,7 @@ QtObject {
     readonly property color faint: pick("outline", "#74757f")
     readonly property color iconDim: pick("onSurfaceVariant", "#abaab5")
     readonly property color accent: pick("primary", "#bfc4ee")
+    property color shellAccent: accent
     readonly property color accentDim: pick("primaryDim", "#b1b6e0")
     readonly property color onAccent: pick("onPrimary", "#383e61")
     readonly property color danger: pick("error", "#f97386")

@@ -1,4 +1,6 @@
 //@ pragma UseQApplication
+// Rasterize small labels and font icons at their final size instead of using distance fields.
+//@ pragma NativeTextRendering
 
 import QtQuick
 import Quickshell
@@ -9,6 +11,14 @@ import "components"
 import "singletons"
 
 ShellRoot {
+    id: root
+
+    readonly property string appThemeSettings: JSON.stringify([
+        Config.value("theme.mode", "dark"), Config.value("monitor.primary", "eDP-1"),
+        Config.value("theme.apply", true)
+    ])
+    property string appliedThemeSettings: ""
+
     PwObjectTracker {
         // qmllint disable missing-property
         objects: Pipewire.nodes.values
@@ -19,10 +29,39 @@ ShellRoot {
 
         function onRevisionChanged(): void {
             Appearance.applyLayerRules();
+            if (root.appliedThemeSettings.length > 0 && root.appliedThemeSettings !== root.appThemeSettings)
+                applyThemeTimer.restart();
+            root.appliedThemeSettings = root.appThemeSettings;
         }
     }
 
-    Component.onCompleted: Appearance.applyLayerRules()
+    Component.onCompleted: {
+        root.appliedThemeSettings = root.appThemeSettings;
+        Appearance.applyLayerRules();
+        if (Config.value("theme.apply", true) !== false)
+            applyThemeTimer.restart();
+    }
+
+    Timer {
+        id: applyThemeTimer
+        interval: 200
+        onTriggered: {
+            if (applyThemeProcess.running)
+                restart();
+            else
+                applyThemeProcess.running = true;
+        }
+    }
+
+    Process {
+        id: applyThemeProcess
+        command: [Session.cli, "theme", "apply"]
+        stderr: StdioCollector { id: applyThemeErrors }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0)
+                console.warn("zestify: application theme failed:", applyThemeErrors.text.trim());
+        }
+    }
 
     Variants {
         model: Quickshell.screens

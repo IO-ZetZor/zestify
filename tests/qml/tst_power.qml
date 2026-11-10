@@ -17,4 +17,30 @@ TestCase {
         verify(Power.completes(0.5, 350, 700));
         verify(!Power.completes(0.4, 350, 700));
     }
+
+    function test_fill_geometry_clamps_and_grows_upward() {
+        var empty = Power.fillGeometry(0, 100);
+        compare(empty.y, 100);
+        compare(empty.height, 0);
+
+        var half = Power.fillGeometry(0.5, 100);
+        compare(half.y, 50);
+        compare(half.height, 50);
+
+        var full = Power.fillGeometry(1, 100);
+        compare(full.y, 0);
+        compare(full.height, 100);
+
+        var clamped = Power.fillGeometry(2, 100);
+        compare(clamped.y, 0);
+        compare(clamped.height, 100);
+
+        var invalid = Power.fillGeometry(-1, -20);
+        compare(invalid.y, 0);
+        compare(invalid.height, 0);
+
+        var nonFinite = Power.fillGeometry(NaN, Infinity);
+        compare(nonFinite.y, 0);
+        compare(nonFinite.height, 0);
+    }
 }

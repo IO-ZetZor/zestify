@@ -85,6 +85,20 @@ class WallpaperProxyTest(unittest.TestCase):
         second = self.ensure(160, 90)
         self.assertNotEqual(first["path"], second["path"])
 
+    def test_ensure_honours_codec_and_crf(self):
+        result = self.run_cli(
+            "proxy", "ensure", "--source", str(self.source),
+            "--width", "320", "--height", "180",
+            "--codec", "h265", "--crf", "28",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        payload = json.loads(result.stdout)
+        codec = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=codec_name", "-of", "json", payload["path"],
+        ], text=True, capture_output=True, check=True)
+        self.assertEqual(json.loads(codec.stdout)["streams"][0]["codec_name"], "hevc")
+
     def test_proxy_fps_capped_at_30(self):
         payload = self.ensure(320, 180, source=self.fast_source)
         self.assertLessEqual(ffprobe_fps(Path(payload["path"])), 30)

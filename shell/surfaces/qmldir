@@ -1,6 +1,7 @@
 SurfaceFrame 1.0 SurfaceFrame.qml
 SystemSurface 1.0 SystemSurface.qml
 MediaSurface 1.0 MediaSurface.qml
+NotificationsSurface 1.0 NotificationsSurface.qml
 AudioSurface 1.0 AudioSurface.qml
 CalendarSurface 1.0 CalendarSurface.qml
 NetworkSurface 1.0 NetworkSurface.qml

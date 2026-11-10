@@ -62,7 +62,9 @@ class WallpaperCliTest(unittest.TestCase):
 
     def test_set_global_writes_state_and_get_returns_it(self):
         image = self.wall / "still.png"
-        result = self.run_zesti("wallpaper", "set", str(image), "--monitor", "eDP-1")
+        result = self.run_zesti(
+            "wallpaper", "set", str(image), "--monitor", "eDP-1", "--no-smart"
+        )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         payload = json.loads(result.stdout)
         self.assertTrue(payload["ok"], payload)
@@ -72,12 +74,50 @@ class WallpaperCliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertEqual(result.stdout.strip(), str(image))
 
+    def test_random_monitor_writes_override(self):
+        result = self.run_zesti(
+            "wallpaper", "random", "--monitor", "eDP-1",
+            "--threshold", "0.5", "--no-smart",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["ok"], payload)
+        state = self.home / ".local/state" / "zestify" / "wallpaper" / "monitors" / "edp-1.txt"
+        self.assertEqual(state.read_text().strip(), str(self.wall / "still.png"))
+        self.assertFalse(
+            (self.home / ".local/state" / "zestify" / "wallpaper" / "path.txt").exists()
+        )
+
+    def test_random_all_writes_global_state(self):
+        result = self.run_zesti("wallpaper", "random", "--all")
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["ok"], payload)
+        self.assertEqual(payload["all"], True)
+        state = self.home / ".local/state" / "zestify" / "wallpaper" / "path.txt"
+        self.assertEqual(state.read_text().strip(), str(self.wall / "still.png"))
+
     def test_invalid_file_returns_json_error(self):
         result = self.run_zesti("wallpaper", "set", str(self.home / "missing.png"))
         self.assertNotEqual(result.returncode, 0)
         payload = json.loads(result.stdout)
         self.assertFalse(payload["ok"])
         self.assertIn("error", payload)
+
+    def test_saved_palette_has_shell_colours_and_both_modes(self):
+        config = self.home / ".config/zestify/config.json"
+        settings = json.loads(config.read_text())
+        settings["theme"] = {"mode": "light", "apply": False}
+        config.write_text(json.dumps(settings))
+        result = self.run_zesti("wallpaper", "set", str(self.wall / "still.png"), "--all")
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        scheme = json.loads((self.home / ".local/state/zestify/scheme.json").read_text())
+        self.assertEqual(scheme["mode"], "light")
+        self.assertEqual(scheme["colours"], scheme["palettes"]["light"])
+        self.assertNotEqual(scheme["palettes"]["dark"]["surface"], scheme["colours"]["surface"])
+        self.assertIn("primary", scheme["colours"])
+        self.assertIn("onSurface", scheme["colours"])
+        self.assertFalse((self.home / ".local/state/zestify/hyprland.rendered").exists())
 
 
 if __name__ == "__main__":

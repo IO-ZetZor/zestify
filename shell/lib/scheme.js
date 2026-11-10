@@ -1,6 +1,20 @@
 .pragma library
 
-function fallbackScheme() {
+function fallbackScheme(mode) {
+    if (mode === "light") {
+        return {
+            name: "zestify-fallback", mode: "light", variant: "light",
+            colours: {
+                background: "f9f8ff", onBackground: "1b1b21",
+                surface: "f9f8ff", onSurface: "1b1b21",
+                surfaceContainerLow: "f3f2fa", surfaceContainer: "ededf4",
+                surfaceContainerHigh: "e7e7ee", surfaceContainerHighest: "e2e1e9",
+                onSurfaceVariant: "454650", outline: "757680",
+                primary: "555b86", primaryDim: "474d78", onPrimary: "ffffff",
+                error: "ba1a1a", onError: "ffffff"
+            }
+        };
+    }
     return {
         name: "zestify-fallback",
         flavour: "hard",
@@ -48,6 +62,29 @@ function fallbackScheme() {
 
 function isObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function coloursFor(scheme, mode) {
+    if (!isObject(scheme))
+        return fallbackScheme(mode).colours;
+    if (isObject(scheme.palettes) && isObject(scheme.palettes[mode]))
+        return scheme.palettes[mode];
+    // Older CLI versions stored the generated dual-mode payload directly.
+    if (isObject(scheme.colors)) {
+        const colours = {};
+        for (const role in scheme.colors) {
+            const entry = scheme.colors[role];
+            const selected = isObject(entry) ? entry[mode] : null;
+            if (isObject(selected) && typeof selected.color === "string") {
+                const key = role.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+                colours[key] = selected.color;
+            }
+        }
+        return colours;
+    }
+    if (isObject(scheme.colours))
+        return scheme.colours;
+    return fallbackScheme(mode).colours;
 }
 
 function pick(global, monitors, screenName) {

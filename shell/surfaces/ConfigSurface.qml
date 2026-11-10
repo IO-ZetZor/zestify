@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import "../components"
 import "../singletons"
 
 /**
@@ -96,6 +97,10 @@ SurfaceFrame {
             return ["primary", "all", "none"];
         case "bar.titleOn":
             return ["focused", "all"];
+        case "wallpaper.pauseWhenObscured":
+            return ["fullscreen", "any-window", "never"];
+        case "wallpaper.proxy.codec":
+            return ["h264", "h265"];
         case "osd.position":
             return ["top-center", "bottom-center", "top-right", "bottom-right"];
         default:
@@ -207,77 +212,6 @@ SurfaceFrame {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: toggle.toggled()
-        }
-    }
-
-    component ValueSlider: Item {
-        id: slider
-
-        property real value: 0
-        property real from: 0
-        property real to: 100
-        property real stepSize: 1
-        property bool integer: true
-        property real preview: -1
-
-        signal committed(real value)
-
-        readonly property real shown: slider.preview >= 0 ? slider.preview : slider.value
-        readonly property real ratio: slider.to > slider.from
-            ? Math.max(0, Math.min(1, (slider.shown - slider.from) / (slider.to - slider.from)))
-            : 0
-
-        implicitWidth: 150 * root.s
-        implicitHeight: 20 * root.s
-
-        function valueAt(positionX) {
-            const fraction = Math.max(0, Math.min(1, positionX / Math.max(1, slider.width)));
-            let next = slider.from + fraction * (slider.to - slider.from);
-            next = Math.round(next / slider.stepSize) * slider.stepSize;
-            return slider.integer ? Math.round(next) : Math.round(next * 100) / 100;
-        }
-
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width
-            height: 4 * root.s
-            radius: height / 2
-            color: root.theme.withAlpha(root.theme.outline, 0.3)
-        }
-
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(4 * root.s, slider.ratio * parent.width)
-            height: 4 * root.s
-            radius: height / 2
-            color: root.theme.accent
-        }
-
-        Rectangle {
-            width: 10 * root.s
-            height: 10 * root.s
-            radius: width / 2
-            y: (parent.height - height) / 2
-            x: Math.max(0, Math.min(parent.width - width, slider.ratio * parent.width - width / 2))
-            color: root.theme.accent
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-
-            onPressed: (mouse) => slider.preview = slider.valueAt(mouse.x)
-            onPositionChanged: (mouse) => {
-                if (pressed)
-                    slider.preview = slider.valueAt(mouse.x);
-            }
-            onReleased: {
-                if (slider.preview >= 0) {
-                    slider.committed(slider.preview);
-                    slider.preview = -1;
-                }
-            }
-            onCanceled: slider.preview = -1
         }
     }
 
@@ -485,11 +419,14 @@ SurfaceFrame {
 
                                         ValueSlider {
                                             id: valueSlider
+                                            theme: root.theme
+                                            s: root.s
                                             from: settingRow.range[0]
                                             to: settingRow.range[1]
                                             stepSize: settingRow.range[2]
                                             integer: !root.isFloat(settingRow.modelData.path)
                                             value: Number(settingRow.current) || 0
+                                            onMoved: (value) => Config.setValue(settingRow.modelData.path, value)
                                             onCommitted: (value) => Config.setValue(settingRow.modelData.path, value)
                                         }
 

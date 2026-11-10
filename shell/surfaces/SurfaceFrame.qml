@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 
 /**
- * Common chrome for expanded surfaces: title, optional back button, close
- * button, and a rounded content body. Surfaces declare their content as
- * ordinary children; the default property forwards them into the body.
+ * Common chrome for expanded surfaces: title and optional back button.
+ * Surfaces declare their content as ordinary children; the default property
+ * forwards them into the body, directly on the pill surface.
  */
 Item {
     id: root
@@ -21,16 +21,6 @@ Item {
 
     implicitWidth: 420
     implicitHeight: 340
-
-    Rectangle {
-        anchors.fill: parent
-        radius: root.theme ? root.theme.r.tile * root.s : 13
-        color: root.theme
-            ? root.theme.withAlpha(root.theme.surfaceLow, Math.max(0.35, root.theme.transparency))
-            : "#00000000"
-        border.width: 0
-        border.color: root.theme ? root.theme.hairline : "#33ffffff"
-    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -75,33 +65,6 @@ Item {
                 font.pixelSize: root.theme ? root.theme.fs.title * root.s : 15
                 font.weight: Font.Medium
                 elide: Text.ElideRight
-            }
-
-            Rectangle {
-                Layout.preferredWidth: 22 * root.s
-                Layout.preferredHeight: 22 * root.s
-                radius: 6 * root.s
-                color: closeArea.containsMouse
-                    ? (root.theme ? root.theme.withAlpha(root.theme.danger, 0.18) : "transparent")
-                    : "transparent"
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "󰅖"
-                    color: closeArea.containsMouse
-                        ? (root.theme ? root.theme.danger : "#ffffff")
-                        : (root.theme ? root.theme.dim : "#ffffff")
-                    font.family: root.theme ? root.theme.iconFont : ""
-                    font.pixelSize: 12 * root.s
-                }
-
-                MouseArea {
-                    id: closeArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.closeRequested()
-                }
             }
         }
 

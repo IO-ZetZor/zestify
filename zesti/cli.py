@@ -14,6 +14,7 @@ from zesti import __version__, ROOT
 from zesti import shell as shell_mod
 from zesti import scheme as scheme_mod
 from zesti import palette as palette_mod
+from zesti import theme as theme_mod
 from zesti import wallpaper as wallpaper_mod
 from zesti import capture as capture_mod
 from zesti import desktop as desktop_mod
@@ -142,30 +143,102 @@ def _scheme_set(args: argparse.Namespace) -> int:
 
 
 def _scheme_apply(args: argparse.Namespace) -> int:
+    return _theme_apply(args)
+
+
+def _app_scheme(paths: Paths, config: dict) -> dict:
+    # Primary overrides select app colours; secondary overrides and focus do not.
+    primary = config.get("monitor", {}).get("primary", "eDP-1")
+    slug = wallpaper_mod.monitor_slug(primary)
+    monitor = paths.monitor_dir / f"{slug}-scheme.json"
+    override = paths.monitor_dir / f"{slug}.txt"
+    if override.exists() and override.read_text().strip() and monitor.exists():
+        return json.loads(monitor.read_text())
+    return scheme_mod.load_scheme(paths)
+
+
+def _theme_apply(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
-    scheme = scheme_mod.load_scheme(paths)
-    print(json.dumps(scheme, indent=2))
+    config = load_config(ROOT / "config/default.json", paths.config_file)
+    results = theme_mod.apply_theme(_app_scheme(paths, config), paths, config, _default_run)
+    _theme_errors(results)
+    ok = all(result["ok"] for result in results)
+    print(json.dumps({"ok": ok, "targets": results}, indent=2))
+    return EXIT_OK if ok else EXIT_RUNTIME
+
+
+def _theme_list(args: argparse.Namespace) -> int:
+    paths = Paths.from_env(os.environ)
+    config = load_config(ROOT / "config/default.json", paths.config_file)
+    print(json.dumps([{"name": t.name, "enabled": t.enabled, "output": str(t.output)}
+                      for t in theme_mod.theme_targets(paths, config)], indent=2))
     return EXIT_OK
+
+
+def _theme_show(args: argparse.Namespace) -> int:
+    paths = Paths.from_env(os.environ)
+    config = load_config(ROOT / "config/default.json", paths.config_file)
+    colours, mode = theme_mod.scheme_colours(_app_scheme(paths, config), config)
+    print(json.dumps({"mode": mode, "colours": colours}, indent=2))
+    return EXIT_OK
+
+
+def _theme_errors(results: list) -> None:
+    for result in results:
+        if not result.get("ok"):
+            print(f"zesti: theme {result.get('target', 'apply')}: {result.get('error')}", file=sys.stderr)
+        elif result.get("restart_required"):
+            print(f"zesti: theme {result['target']}: restart Zen to load the updated profile theme; later palette changes update live", file=sys.stderr)
 
 
 def _make_theme_applier(paths: Paths):
     def apply(scheme: dict) -> list:
         try:
             config = load_config(ROOT / "config" / "default.json", paths.config_file)
-        except (OSError, ValueError):
-            config = {}
-        return theme_mod.apply_theme(scheme, paths, config, _default_run)
+        except (OSError, ValueError) as exc:
+            raise theme_mod.ThemeError(f"cannot load theme configuration: {exc}") from exc
+        if config.get("theme", {}).get("apply") is False:
+            return []
+        results = theme_mod.apply_theme(scheme, paths, config, _default_run)
+        _theme_errors(results)
+        return results
 
     return apply
 
 
 def _wallpaper_services() -> wallpaper_mod.WallpaperServices:
     paths = Paths.from_env(os.environ)
+    try:
+        config = load_config(ROOT / "config" / "default.json", paths.config_file)
+    except (OSError, ValueError):
+        config = {}
+    mode = config.get("theme", {}).get("mode", "dark")
+    if mode not in ("dark", "light"):
+        mode = "dark"
+
+    def generate(source, settings, run):
+        payload = palette_mod.generate_palette(source, settings, run)
+        palettes = {}
+        for variant in ("dark", "light"):
+            metadata = palette_mod.SchemeMetadata(
+                name=source.stem, flavour=settings.variant, mode=variant,
+                variant=settings.variant, colours=len(payload["colors"]),
+            )
+            colours = palette_mod.normalize_matugen(payload, variant, metadata)
+            colours.pop("metadata")
+            palettes[variant] = colours
+        return {
+            "name": source.stem, "flavour": settings.variant,
+            "mode": mode, "variant": settings.variant,
+            "colours": palettes[mode], "palettes": palettes,
+        }
+
     return wallpaper_mod.WallpaperServices(
-        generate_palette=palette_mod.generate_palette,
+        generate_palette=generate,
         save_scheme=scheme_mod.save_scheme,
         theme_applier=_make_theme_applier(paths),
         run=_default_run,
+        primary_monitor=config.get("monitor", {}).get("primary", "eDP-1"),
     )
 
 
@@ -180,8 +253,9 @@ def _wallpaper_config_dir(paths: Paths) -> Path:
 
 def _wallpaper_list(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
+    services = _wallpaper_services()
     directory = Path(getattr(args, "dir", None) or _wallpaper_config_dir(paths))
-    items = wallpaper_mod.list_wallpapers(directory)
+    items = wallpaper_mod.list_wallpapers(directory, paths, services.run)
     print(json.dumps(items, indent=2))
     return EXIT_OK
 
@@ -214,7 +288,16 @@ def _wallpaper_random(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
     services = _wallpaper_services()
     directory = Path(getattr(args, "dir", None) or _wallpaper_config_dir(paths))
-    result = wallpaper_mod.set_wallpaper(directory, wallpaper_mod.WallpaperTarget("random"), paths, services)
+    no_filter = bool(getattr(args, "no_filter", False))
+    if getattr(args, "all", False):
+        target = wallpaper_mod.WallpaperTarget("all", random=True, no_filter=no_filter)
+    elif getattr(args, "monitor", None):
+        target = wallpaper_mod.WallpaperTarget(
+            "monitor", args.monitor, random=True, no_filter=no_filter
+        )
+    else:
+        target = wallpaper_mod.WallpaperTarget("random", no_filter=no_filter)
+    result = wallpaper_mod.set_wallpaper(directory, target, paths, services)
     print(json.dumps(result, indent=2))
     return EXIT_OK if result["ok"] else EXIT_RUNTIME
 
@@ -353,7 +436,8 @@ def _run_repo_script(script_name: str, argv: list[str]) -> int:
 
 def _proxy_ensure(args: argparse.Namespace) -> int:
     return _run_repo_script("wallpaper-proxy", ["proxy", "ensure", "--source", args.source,
-                                                "--width", str(args.width), "--height", str(args.height)])
+                                                "--width", str(args.width), "--height", str(args.height),
+                                                "--codec", args.codec, "--crf", str(args.crf)])
 
 
 def _proxy(args: argparse.Namespace) -> int:
@@ -472,7 +556,10 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     def shell_subparser(name, handler, flags=None):
         p = shell_sub.add_parser(name)
         for flag in (flags or []):
-            p.add_argument(flag)
+            if flag in ("--json", "--foreground", "--follow"):
+                p.add_argument(flag, action="store_true")
+            else:
+                p.add_argument(flag)
         p.set_defaults(func=handler)
         return p
 
@@ -482,7 +569,10 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     shell_subparser("status", _shell_status, ["--json"])
     shell_subparser("logs", _shell_logs, ["--follow", "--log-rules"])
     shell_subparser("show", _shell_show)
-    shell_subparser("call", _shell_call, ["TARGET", "FUNCTION", "ARG"])
+    shell_call_parser = shell_subparser("call", _shell_call)
+    shell_call_parser.add_argument("target")
+    shell_call_parser.add_argument("function")
+    shell_call_parser.add_argument("arg", nargs="*")
     shell_subparser("open", _shell_open, ["SURFACE"])
 
     # Wallpaper.
@@ -500,9 +590,16 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     group = ws.add_mutually_exclusive_group()
     group.add_argument("--monitor")
     group.add_argument("--all", action="store_true")
+    ws.add_argument("--no-smart", action="store_true")
     ws.set_defaults(func=_wallpaper_set)
     wr = wallpaper_sub.add_parser("random")
     wr.add_argument("dir", nargs="?")
+    random_group = wr.add_mutually_exclusive_group()
+    random_group.add_argument("--monitor")
+    random_group.add_argument("--all", action="store_true")
+    wr.add_argument("--no-filter", action="store_true")
+    wr.add_argument("--threshold", type=float, default=0.8)
+    wr.add_argument("--no-smart", action="store_true")
     wr.set_defaults(func=_wallpaper_random)
     wt = wallpaper_sub.add_parser("thumb")
     wt.add_argument("file")
@@ -514,11 +611,12 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     wp.set_defaults(func=_wallpaper_print)
 
     # Theme.
-    _add_family(
-        subparsers,
-        "theme",
-        ["list", "show", "set", "generate", "apply"],
-    )
+    theme_parser = subparsers.add_parser("theme", help="application theme commands")
+    theme_sub = theme_parser.add_subparsers(dest="subcommand", required=True)
+    for name, handler in (("list", _theme_list), ("show", _theme_show), ("apply", _theme_apply)):
+        theme_sub.add_parser(name).set_defaults(func=handler)
+    for name in ("set", "generate"):
+        theme_sub.add_parser(name).set_defaults(func=_placeholder_handler)
 
     # Scheme.
     scheme_parser = subparsers.add_parser("scheme", help="scheme commands")
@@ -617,6 +715,8 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     pe.add_argument("--source", required=True)
     pe.add_argument("--width", required=True, type=int)
     pe.add_argument("--height", required=True, type=int)
+    pe.add_argument("--codec", default="h264", choices=["h264", "h265", "hevc"])
+    pe.add_argument("--crf", default=20, type=int)
     pe.set_defaults(func=_proxy)
 
     # Cache.
@@ -661,6 +761,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_RUNTIME
     except BrokenPipeError:
         return EXIT_OK
+    except (theme_mod.ThemeError, OSError, ValueError) as exc:
+        print(f"zesti: {exc}", file=sys.stderr)
+        return EXIT_RUNTIME
 
 
 if __name__ == "__main__":

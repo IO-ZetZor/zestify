@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Layouts
 import "../lib/time.js" as Time
 
@@ -17,10 +16,16 @@ RowLayout {
 
     readonly property var player: root.players ? root.players.active : null
 
-    spacing: 28 * root.s
+    LyricsProvider {
+        id: lyrics
+        player: root.player
+        active: root.active && root.visible
+    }
+
+    spacing: 20 * root.s
 
     ColumnLayout {
-        Layout.preferredWidth: 300 * root.s
+        Layout.preferredWidth: 220 * root.s
         Layout.fillHeight: true
         spacing: 6 * root.s
 
@@ -28,56 +33,15 @@ RowLayout {
             Layout.fillHeight: true
         }
 
-        Item {
-            id: coverFrame
-            Layout.preferredWidth: 200 * root.s
-            Layout.preferredHeight: 200 * root.s
+        AlbumCover {
+            Layout.preferredWidth: 190 * root.s
+            Layout.preferredHeight: 190 * root.s
             Layout.alignment: Qt.AlignHCenter
-
-            Rectangle {
-                id: coverMask
-                anchors.fill: parent
-                radius: width / 2
-                color: root.theme.tileBg
-                layer.enabled: true
-            }
-
-            Item {
-                id: coverContent
-                anchors.fill: parent
-
-                Image {
-                    anchors.fill: parent
-                    source: root.player ? (root.player.trackArtUrl || "") : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    cache: true
-                    visible: status === Image.Ready
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: !root.player || !root.player.trackArtUrl
-                    text: "󰎆"
-                    color: root.theme.dim
-                    font.family: root.theme.iconFont
-                    font.pixelSize: 72 * root.s
-                }
-            }
-
-            ShaderEffectSource {
-                id: coverSource
-                sourceItem: coverContent
-                hideSource: true
-                live: true
-            }
-
-            MultiEffect {
-                anchors.fill: parent
-                source: coverSource
-                maskEnabled: true
-                maskSource: coverMask
-            }
+            theme: root.theme
+            s: root.s
+            source: root.player ? root.player.trackArtUrl || "" : ""
+            playing: root.player && root.player.isPlaying
+            active: root.active && !(root.motion && root.motion.calm)
         }
 
         RowLayout {
@@ -207,12 +171,24 @@ RowLayout {
             active: root.active
         }
 
+        Text {
+            Layout.fillWidth: true
+            Layout.topMargin: 4 * root.s
+            visible: lyrics.currentLine.length > 0
+            text: lyrics.currentLine
+            textFormat: Text.PlainText
+            color: root.theme.accent
+            font.family: root.theme.fontFamily
+            font.pixelSize: root.theme.fs.body * root.s
+            elide: Text.ElideRight
+        }
+
         // Quickshell's Mpris position does not update reactively while a track
         // plays; poll it so the seek bar and elapsed time keep progressing.
         // Mirrors Caelestia's Details.qml (500 ms media update interval).
         Timer {
             interval: 500
-            running: root.player && root.player.isPlaying
+            running: root.active && root.visible && root.player && root.player.isPlaying
             triggeredOnStart: true
             repeat: true
             onTriggered: root.player.positionChanged()

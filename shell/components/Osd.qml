@@ -23,6 +23,7 @@ PanelWindow {
     readonly property real s: primaryScreen
         ? LayoutLib.pillScale(primaryScreen.width, primaryScreen.height) * Config.bar.scale
         : 1
+    readonly property var placement: LayoutLib.osdPlacement(Config.osd.position)
 
     screen: primaryScreen
     visible: showing && Config.osd.enabled
@@ -31,19 +32,24 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "zestify-osd"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    anchors.bottom: true
-    anchors.left: true
+    anchors.top: root.placement.top
+    anchors.bottom: !root.placement.top
+    anchors.left: !root.placement.right
+    anchors.right: root.placement.right
 
     implicitWidth: 280 * s
     implicitHeight: 58 * s
-    margins.bottom: 42 * s
-    margins.left: primaryScreen
-        ? Math.max(0, (primaryScreen.width - implicitWidth) / 2)
-        : 0
+    margins.top: root.placement.top ? 42 * s : 0
+    margins.bottom: root.placement.top ? 0 : 42 * s
+    margins.left: root.placement.right
+        ? 0
+        : (primaryScreen ? Math.max(0, (primaryScreen.width - implicitWidth) / 2) : 0)
+    margins.right: root.placement.right ? 14 * s : 0
 
     Theme {
         id: themeObject
         scheme: Colours.schemeFor(root.primaryScreen ? root.primaryScreen.name : "")
+        mode: Config.theme.mode
         fontFamily: Config.theme.fontFamily
         monoFont: Config.theme.monoFont
         iconFont: Config.theme.iconFont

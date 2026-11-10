@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Services.UPower
 import "singletons"
 import "components"
 import "backgrounds"
@@ -12,12 +13,21 @@ Scope {
     readonly property alias theme: themeObject
     readonly property alias pill: pillWindow.pill
     readonly property alias background: backgroundWindow
+    readonly property bool powerSaving: PowerProfiles.profile === PowerProfile.PowerSaver
 
     Component.onCompleted: Stats.start()
 
     Theme {
+        id: globalTheme
+        scheme: Colours.globalScheme
+        mode: Config.theme.mode
+    }
+
+    Theme {
         id: themeObject
+        shellAccent: globalTheme.accent
         scheme: Colours.schemeFor(root.screen ? root.screen.name : "")
+        mode: Config.theme.mode
         fontFamily: Config.theme.fontFamily
         monoFont: Config.theme.monoFont
         iconFont: Config.theme.iconFont
@@ -34,7 +44,7 @@ Scope {
         dpmsOn: Session.dpmsActive
         batteryLow: Stats.batteryPercent > 0
             && Stats.batteryPercent <= Config.wallpaper.pauseOnBatteryBelow
-        powerSaver: false
+        powerSaver: Config.wallpaper.pauseOnPowerSaver && root.powerSaving
     }
 
     PillWindow {
@@ -57,6 +67,22 @@ Scope {
         uiScale: Config.bar.scale
         motion: Motion
         enabled: root.screen ? root.screen.name === Config.monitor.primary : false
+    }
+
+    NotificationDrawerWindow {
+        targetScreen: root.screen
+        theme: root.theme
+        motion: Motion
+        uiScale: Config.bar.scale
+        backgroundOpacity: Config.bar.opacity
+    }
+
+    LockPullWindow {
+        targetScreen: root.screen
+        theme: root.theme
+        motion: Motion
+        uiScale: Config.bar.scale
+        backgroundOpacity: Config.bar.opacity
     }
 
     Connections {

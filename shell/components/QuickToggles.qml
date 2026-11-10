@@ -12,6 +12,8 @@ RowLayout {
     property var motion
     property var onOpenWallpaper
 
+    signal dndToggled()
+
     spacing: 4 * root.s
 
     component Toggle: Rectangle {
@@ -46,7 +48,7 @@ RowLayout {
     Toggle {
         glyph: "󰖔"
         on: root.dnd
-        onToggled: root.dnd = !root.dnd
+        onToggled: root.dndToggled()
     }
 
     Toggle {

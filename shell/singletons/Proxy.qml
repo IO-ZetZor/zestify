@@ -15,8 +15,10 @@ Singleton {
     property string pendingSource: ""
     property int pendingWidth: 0
     property int pendingHeight: 0
+    property string pendingCodec: "h264"
+    property int pendingCrf: 20
 
-    function ensure(source, width, height) {
+    function ensure(source, width, height, codec, crf) {
         if (!source) {
             root.failed(source, "no source");
             return;
@@ -25,11 +27,17 @@ Singleton {
             root.failed(source, "proxy busy");
             return;
         }
+        const nextCodec = codec || "h264";
+        const nextCrf = crf === undefined ? 20 : Number(crf);
         root.pendingSource = source;
         root.pendingWidth = width;
         root.pendingHeight = height;
+        root.pendingCodec = nextCodec;
+        root.pendingCrf = nextCrf;
         root.busy = true;
-        process.command = [root.bin, "proxy", "ensure", "--source", source, "--width", String(width), "--height", String(height)];
+        process.command = [root.bin, "proxy", "ensure", "--source", source,
+            "--width", String(width), "--height", String(height),
+            "--codec", nextCodec, "--crf", String(nextCrf)];
         process.running = true;
     }
 

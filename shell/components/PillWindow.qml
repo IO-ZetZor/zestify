@@ -15,6 +15,7 @@ PanelWindow {
     property real uiScale: 1
     property real topGap: 8
     property bool showTitle: true
+    property bool focusRequested: false
 
     readonly property alias pill: pill
 
@@ -25,8 +26,28 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "zestify-pill"
     WlrLayershell.keyboardFocus: pill && pill.surface.length > 0 && !pill.fullscreen
-        ? WlrKeyboardFocus.Exclusive
+        ? (root.focusRequested ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
         : WlrKeyboardFocus.None
+
+    // Hyprland routes all pointer input to Exclusive layers, even outside
+    // their masks. Acquire focus for keyboard-opened surfaces briefly, then
+    // retain focus with OnDemand so the screen-edge gestures remain reachable.
+    function acquireFocus() {
+        root.focusRequested = pill.surface.length > 0 && !pill.fullscreen;
+        if (root.focusRequested) focusPulse.restart();
+        else focusPulse.stop();
+    }
+    Component.onCompleted: root.acquireFocus()
+    Timer {
+        id: focusPulse
+        interval: 100
+        onTriggered: root.focusRequested = false
+    }
+    Connections {
+        target: pill
+        function onSurfaceChanged() { root.acquireFocus(); }
+        function onFullscreenChanged() { root.acquireFocus(); }
+    }
 
     anchors {
         top: true
@@ -55,9 +76,10 @@ PanelWindow {
 
     Region {
         id: fullMask
-        x: 0
+        // Leave the drawer's narrow edge strip reachable while expanded.
+        x: Math.max(3, Math.min(6, Math.round(4 * (pill ? pill.s : root.uiScale))))
         y: 0
-        width: targetScreen ? targetScreen.width : 0
+        width: targetScreen ? Math.max(0, targetScreen.width - x) : 0
         height: targetScreen ? targetScreen.height : 0
     }
 

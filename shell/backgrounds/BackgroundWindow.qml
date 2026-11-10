@@ -21,19 +21,35 @@ PanelWindow {
 
     readonly property bool isVideo: WallpapersLib.isVideoPath(wallpaperPath)
     readonly property bool proxyEnabled: config ? config.wallpaper.proxy.enabled : true
-    readonly property var activeWorkspace: {
-        const monitor = Hyprland.monitorFor(targetScreen);
-        return monitor ? monitor.activeWorkspace : null;
-    }
+    readonly property var monitor: Hyprland.monitorFor(targetScreen)
+    readonly property var activeWorkspace: monitor ? monitor.activeWorkspace : null
+    readonly property bool monitorFocused: monitor ? monitor.focused : true
     readonly property bool fullscreenCover: BackgroundLib.isFullscreen(activeWorkspace)
+    readonly property bool anyWindow: {
+        const workspace = root.activeWorkspace;
+        const model = workspace ? workspace.toplevels : null;
+        const values = model ? model.values : null;
+        return !!(values && values.length > 0);
+    }
+    readonly property bool obscured: {
+        if (!root.config)
+            return false;
+        return BackgroundLib.shouldPauseForObscured(
+            root.config.wallpaper.pauseWhenObscured,
+            root.config.wallpaper.pauseOnFullscreen && root.fullscreenCover,
+            root.anyWindow);
+    }
+    property bool unfocusedPaused: false
     readonly property bool shouldDecode: !locked && dpmsOn && !batteryLow && !powerSaver
-        && !(config && config.wallpaper.pauseOnFullscreen && fullscreenCover)
+        && !obscured && !unfocusedPaused
 
     property string proxyPath: ""
     property bool proxyFailed: false
     property string requestedSource: ""
     property int requestedWidth: 0
     property int requestedHeight: 0
+    property string requestedCodec: ""
+    property int requestedCrf: -1
 
     screen: targetScreen
     color: "black"
@@ -56,36 +72,68 @@ PanelWindow {
             return;
         if (width <= 0 || height <= 0)
             return;
-        if (!ProxyLib.needsRequest(source, requestedSource, proxyPath, proxyFailed,
-                requestedWidth, requestedHeight, width, height))
+        const settings = root.config ? root.config.wallpaper.proxy : null;
+        const target = ProxyLib.resolutionSize(settings ? settings.resolution : "monitor", width, height);
+        const codec = settings ? settings.codec : "h264";
+        const crf = settings ? settings.crf : 20;
+        if (target.width <= 0 || target.height <= 0)
+            return;
+        const settingsChanged = root.requestedCodec !== codec || root.requestedCrf !== crf;
+        if (!settingsChanged && !ProxyLib.needsRequest(source, requestedSource, proxyPath, proxyFailed,
+                requestedWidth, requestedHeight, target.width, target.height))
             return;
         requestedSource = source;
-        requestedWidth = width;
-        requestedHeight = height;
+        requestedWidth = target.width;
+        requestedHeight = target.height;
+        requestedCodec = codec;
+        requestedCrf = crf;
         proxyFailed = false;
         proxyPath = "";
-        proxy.ensure(source, width, height);
+        proxy.ensure(source, target.width, target.height, codec, crf);
     }
 
-    onWidthChanged: ensureProxy()
-    onHeightChanged: ensureProxy()
-
-    onWallpaperPathChanged: {
+    function resetProxy() {
         proxyPath = "";
         proxyFailed = false;
         requestedSource = "";
         requestedWidth = 0;
         requestedHeight = 0;
+        requestedCodec = "";
+        requestedCrf = -1;
         ensureProxy();
     }
 
+    onWidthChanged: ensureProxy()
+    onHeightChanged: ensureProxy()
+
+    onWallpaperPathChanged: resetProxy()
+
+    onMonitorFocusedChanged: {
+        if (monitorFocused)
+            unfocusedPaused = false;
+    }
+
     Component.onCompleted: ensureProxy()
+
+    Timer {
+        id: unfocusedTimer
+
+        interval: root.config ? Math.max(0, root.config.wallpaper.pauseUnfocusedAfter) * 1000 : 0
+        repeat: true
+        running: interval > 0 && root.monitor !== null && !root.monitorFocused
+        onTriggered: root.unfocusedPaused = true
+        onRunningChanged: {
+            if (!running)
+                root.unfocusedPaused = false;
+        }
+        onIntervalChanged: root.unfocusedPaused = false
+    }
 
     Connections {
         target: root.proxy
         function onReady(source, path, width, height) {
             if (ProxyLib.accepts(source, path, width, height,
-                    root.wallpaperPath, root.targetScreen.width, root.targetScreen.height)) {
+                    root.wallpaperPath, root.requestedWidth, root.requestedHeight)) {
                 root.proxyPath = path;
                 root.proxyFailed = false;
             }
@@ -101,6 +149,15 @@ PanelWindow {
             if (!root.proxy.busy)
                 root.ensureProxy();
         }
+    }
+
+    Connections {
+        target: root.config ? root.config.wallpaper.proxy : null
+
+        function onEnabledChanged() { root.resetProxy(); }
+        function onResolutionChanged() { root.resetProxy(); }
+        function onCodecChanged() { root.resetProxy(); }
+        function onCrfChanged() { root.resetProxy(); }
     }
 
     WallpaperImage {

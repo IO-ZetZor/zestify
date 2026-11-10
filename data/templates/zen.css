@@ -1,0 +1,32 @@
+/* Native palette roles only: Zen and its mods own backgrounds and opacity. */
+:root {
+    --zen-primary-color: SelectedItem !important;
+    --zen-colors-primary: ButtonFace !important;
+    --zen-colors-primary-foreground: -moz-dialogtext !important;
+    --zen-colors-secondary: -moz-dialog !important;
+    --zen-colors-tertiary: ButtonFace !important;
+    --zen-colors-input-bg: Field !important;
+    --zen-branding-bg: -moz-dialog !important;
+    --zen-branding-bg-reverse: -moz-dialogtext !important;
+    --zen-urlbar-background-base: Field !important;
+    --lwt-text-color: -moz-dialogtext !important;
+    --toolbox-textcolor: -moz-dialogtext !important;
+    --toolbox-text-color: -moz-dialogtext !important;
+    --toolbar-color: -moz-dialogtext !important;
+    --toolbar-text-color: -moz-dialogtext !important;
+    --toolbar-field-background-color: Field !important;
+    --toolbar-field-color: FieldText !important;
+    --toolbar-field-focus-background-color: Field !important;
+    --toolbar-field-focus-color: FieldText !important;
+    --arrowpanel-background: -moz-dialog !important;
+    --arrowpanel-color: -moz-dialogtext !important;
+    --tab-selected-textcolor: -moz-dialogtext !important;
+    --tab-text-color: -moz-dialogtext !important;
+    --tab-text-color-hover: -moz-dialogtext !important;
+    --tab-text-color-selected: -moz-dialogtext !important;
+    --sidebar-text-color: -moz-dialogtext !important;
+}
+
+#navigator-toolbox, #TabsToolbar, #PersonalToolbar {
+    color: -moz-dialogtext !important;
+}

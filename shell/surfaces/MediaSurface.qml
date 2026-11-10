@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import "../components"
 import Quickshell.Services.Mpris
 import "../lib/time.js" as Time
 
@@ -14,7 +15,25 @@ SurfaceFrame {
 
     readonly property var player: root.players ? root.players.active : null
 
+    property bool active: true
+    readonly property real trackLength: root.player && root.player.metadata
+        ? Math.max(0, Number(root.player.metadata["mpris:length"]) || 0) / 1000000
+        : (root.player && root.player.lengthSupported ? root.player.length : 0)
+
     title: "Now playing"
+
+    LyricsProvider {
+        id: lyrics
+        player: root.player
+        active: root.active && root.visible
+    }
+    Timer {
+        interval: 500
+        repeat: true
+        triggeredOnStart: true
+        running: root.active && root.visible && root.player && root.player.isPlaying
+        onTriggered: root.player.positionChanged()
+    }
 
     function cycleLoop() {
         if (!root.player || !root.player.loopSupported)
@@ -68,35 +87,18 @@ SurfaceFrame {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 14 * root.s
+            Layout.preferredHeight: 182 * root.s
+            Layout.maximumHeight: 182 * root.s
+            spacing: 18 * root.s
 
-            Rectangle {
-                Layout.preferredWidth: 148 * root.s
-                Layout.preferredHeight: 148 * root.s
-                radius: root.theme.r.tile * root.s
-                color: root.theme.tileBg
-                border.width: 1
-                border.color: root.theme.border
-                clip: true
-
-                Image {
-                    anchors.fill: parent
-                    source: root.player ? (root.player.trackArtUrl || "") : ""
-                    asynchronous: true
-                    cache: true
-                    fillMode: Image.PreserveAspectCrop
-                    visible: status === Image.Ready
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: !root.player || !root.player.trackArtUrl
-                    text: "󰎆"
-                    color: root.theme.faint
-                    font.family: root.theme.iconFont
-                    font.pixelSize: 48 * root.s
-                }
+            AlbumCover {
+                Layout.preferredWidth: Math.min(180 * root.s, root.width * 0.35)
+                Layout.preferredHeight: Layout.preferredWidth
+                theme: root.theme
+                s: root.s
+                source: root.player ? root.player.trackArtUrl || "" : ""
+                playing: root.player && root.player.isPlaying
+                active: root.active && !(root.motion && root.motion.calm)
             }
 
             ColumnLayout {
@@ -155,13 +157,23 @@ SurfaceFrame {
             }
         }
 
+        LyricsView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 70 * root.s
+            theme: root.theme
+            s: root.s
+            provider: lyrics
+            players: root.players
+        }
+
         Item {
             id: seekBar
             Layout.fillWidth: true
             Layout.preferredHeight: 16 * root.s
 
-            readonly property real progress: root.player && root.player.length > 0
-                ? Math.max(0, Math.min(1, root.player.position / root.player.length))
+            readonly property real progress: root.player && root.trackLength > 0
+                ? Math.max(0, Math.min(1, root.player.position / root.trackLength))
                 : 0
 
             Rectangle {
@@ -194,10 +206,10 @@ SurfaceFrame {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                enabled: root.player && root.player.canSeek && root.player.length > 0
+                enabled: root.player && root.player.canSeek && root.trackLength > 0
                 onClicked: (mouse) => {
-                    if (root.player && root.player.canSeek && root.player.length > 0)
-                        root.players.seek(Math.max(0, Math.min(1, mouse.x / width)) * root.player.length);
+                    if (root.player && root.player.canSeek && root.trackLength > 0)
+                        root.players.seek(Math.max(0, Math.min(1, mouse.x / width)) * root.trackLength);
                 }
             }
         }
@@ -256,7 +268,7 @@ SurfaceFrame {
             Item { Layout.fillWidth: true }
 
             Text {
-                text: root.player ? Time.formatDuration(root.player.length) : "0:00"
+                text: root.player ? Time.formatDuration(root.trackLength) : "0:00"
                 color: root.theme.faint
                 font.family: root.theme.monoFont
                 font.pixelSize: root.theme.fs.meta * root.s

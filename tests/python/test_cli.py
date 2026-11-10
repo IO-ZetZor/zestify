@@ -40,9 +40,22 @@ class CliTest(unittest.TestCase):
         self.assertIn("-d", result.stdout)
 
     def test_status_calls_ping_ipc(self):
+        log = self.root / "qs-status.log"
+        self.env["QS_STATUS_LOG"] = str(log)
+        self.qs.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$QS_STATUS_LOG\"\nprintf 'pong\\n'\n")
         result = self.run_cli("status")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "ipc -c zestify call zestify ping")
+        self.assertEqual(result.stdout.strip(), "pong")
+        self.assertEqual(log.read_text().strip(), "ipc -c zestify call zestify ping")
+
+    def test_call_forwards_zero_or_multiple_arguments(self):
+        for arguments in [(), ("theme.transparency", "0.5")]:
+            with self.subTest(arguments=arguments):
+                result = self.run_cli("shell", "call", "zestify", "setConfig", *arguments)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), " ".join([
+                    "ipc", "-c", "zestify", "call", "zestify", "setConfig", *arguments,
+                ]))
 
     def test_stop_calls_quit_ipc(self):
         result = self.run_cli("stop")

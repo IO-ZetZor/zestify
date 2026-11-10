@@ -40,6 +40,14 @@ TestCase {
         compare(history.length, 3);
     }
 
+    function test_replacement_updates_existing_entry_without_duplicates() {
+        const history = [entry(2, "second"), entry(1, "first")];
+        const next = Notifications.add(history, entry(1, "updated"), 3);
+        compare(next.length, 2);
+        compare(next[0].summary, "updated");
+        compare(next[1].id, 2);
+    }
+
     function test_clear_returns_empty_history() {
         compare(Notifications.clear().length, 0);
     }

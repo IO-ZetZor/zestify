@@ -26,4 +26,18 @@ TestCase {
         verify(ProxyLib.needsRequest("/b.mp4", "/a.mp4", "/cache/a.mp4", false, 1920, 1200, 1920, 1200));
         verify(ProxyLib.needsRequest("/a.mp4", "/a.mp4", "", true, 1920, 1200, 1920, 1200));
     }
+
+    function test_resolution_setting_overrides_monitor_size() {
+        const monitor = ProxyLib.resolutionSize("monitor", 1920, 1200);
+        compare(monitor.width, 1920);
+        compare(monitor.height, 1200);
+
+        const fixed = ProxyLib.resolutionSize("1280x720", 1920, 1200);
+        compare(fixed.width, 1280);
+        compare(fixed.height, 720);
+
+        const fallback = ProxyLib.resolutionSize("invalid", 1920, 1200);
+        compare(fallback.width, 1920);
+        compare(fallback.height, 1200);
+    }
 }

@@ -1,6 +1,23 @@
 -- Zestify user bindings. Installed to ~/.config/hypr/conf/zestify.lua
--- and included from binds.lua inside the zestify-binds marker block.
+-- and required from binds.lua inside the zestify-binds marker block.
 
-hl.bind("SUPER + Escape", hl.dsp.exec_cmd("zestify lock"))
-hl.bind("SUPER + D", hl.dsp.exec_cmd("zestify ipc launcher"))
-hl.bind("SUPER + W", hl.dsp.exec_cmd("zestify ipc wallpaper"))
+-- Graphical sessions often omit ~/.local/bin from PATH. Quote the executable
+-- for exec_cmd's shell, including paths with spaces or apostrophes.
+local executable = os.getenv("ZESTI_BIN") or os.getenv("ZESTIFY_BIN")
+    or (os.getenv("HOME") .. "/.local/bin/zesti")
+local function command(arguments)
+    return "'" .. executable:gsub("'", "'\\''") .. "' " .. arguments
+end
+
+local function bind(key, arguments)
+    -- Replace earlier Caelestia/legacy bindings for these owned shortcuts.
+    hl.unbind(key)
+    hl.bind(key, hl.dsp.exec_cmd(command(arguments)))
+end
+
+bind("SUPER + Escape", "lock")
+bind("SUPER + D", "shell open launcher")
+bind("SUPER + W", "shell open wallpaper")
+bind("SUPER + P", "capture screenshot")
+
+return { command = command }

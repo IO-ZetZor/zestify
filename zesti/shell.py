@@ -11,9 +11,12 @@ import json
 import os
 import signal
 import subprocess
+import sys
 from argparse import Namespace
 from time import monotonic, sleep
 from typing import Callable, Mapping, Sequence
+
+from zesti.paths import Paths
 
 # Exit codes mirrored from zesti.cli.
 EXIT_OK = 0
@@ -35,7 +38,18 @@ def _default_run(cmd: Sequence[str], **kwargs) -> str:
     completed = subprocess.run(
         list(cmd), text=True, capture_output=True, **kwargs
     )
+    if completed.returncode and completed.stderr:
+        print(completed.stderr.strip(), file=sys.stderr)
     return completed.stdout
+
+
+def _checked_run(run: Callable[..., str], cmd: Sequence[str], **kwargs) -> tuple[str, int]:
+    try:
+        return run(cmd, check=True, **kwargs), EXIT_OK
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        print(f"zesti: {detail}", file=sys.stderr)
+        return "", EXIT_RUNTIME
 
 
 def _default_sleep(seconds: float) -> None:
@@ -54,7 +68,7 @@ def list_instances(
     Only JSON output or the exact "No running instances" text is parsed;
     anything else yields an empty list (never crashes the caller).
     """
-    out = run(["qs", "ipc", "-c", CONFIG, "list"], check=False)
+    out = run(["qs", "list", "-c", CONFIG, "--json"], check=False)
     text = out.strip()
     if text == "No running instances" or not text:
         return []
@@ -89,9 +103,15 @@ def start_shell(
         return EXIT_OK
     env = dict(os.environ)
     env["ZESTI_BIN"] = _ZESTI_BIN
-    out = run(["qs", "-c", CONFIG, "-n", "-d"], env=env, check=False)
+    env["ZESTI_DESKTOP_CONFIG_HOME"] = str(Paths.from_env(env).config_home)
+    cmd = ["qs", "-c", CONFIG, "-n"]
+    if not getattr(args, "foreground", False):
+        cmd.append("-d")
+    if getattr(args, "log_rules", None):
+        cmd.extend(["--log-rules", args.log_rules])
+    out, status = _checked_run(run, cmd, env=env)
     print(out, end="")
-    return EXIT_OK
+    return status
 
 
 def stop_shell(
@@ -144,14 +164,12 @@ def shell_status(
     )
     text = out.strip()
     if json_output:
-        try:
-            data = json.loads(text)
-        except (ValueError, json.JSONDecodeError):
-            return EXIT_RUNTIME
-        print(json.dumps({"ok": True, "running": bool(data), "ping": data}))
+        running = text == "pong"
+        print(json.dumps({"ok": running, "running": running, "ping": text}))
+        return EXIT_OK if running else EXIT_RUNTIME
     else:
         print(text)
-    return EXIT_OK
+    return EXIT_OK if text == "pong" else EXIT_RUNTIME
 
 
 def shell_open(
@@ -161,7 +179,8 @@ def shell_open(
     surface = getattr(args, "SURFACE", None) or getattr(args, "surface", None)
     if not surface:
         return EXIT_RUNTIME
-    run(
+    _, status = _checked_run(
+        run,
         [
             "qs",
             "ipc",
@@ -172,13 +191,12 @@ def shell_open(
             "openSurface",
             surface,
         ],
-        check=False,
     )
-    return EXIT_OK
+    return status
 
 
 def shell_show(args: Namespace, run: Callable[..., str] = _default_run) -> int:
-    out = run(["qs", "ipc", "-c", CONFIG, "list"], check=False)
+    out = run(["qs", "ipc", "-c", CONFIG, "show"], check=False)
     print(out, end="")
     return EXIT_OK
 
@@ -223,5 +241,7 @@ def shell_restart(
         sleep(min(0.25, max(0.0, deadline - monotonic())))
     env = dict(os.environ)
     env["ZESTI_BIN"] = _ZESTI_BIN
-    run(["qs", "-c", CONFIG, "-n", "-d"], env=env, check=False)
-    return EXIT_OK
+    env["ZESTI_DESKTOP_CONFIG_HOME"] = str(Paths.from_env(env).config_home)
+    out, status = _checked_run(run, ["qs", "-c", CONFIG, "-n", "-d"], env=env)
+    print(out, end="")
+    return status

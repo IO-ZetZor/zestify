@@ -21,7 +21,8 @@ QtObject {
             transparency: 0.88,
             font: "SF Pro",
             mono: "SF Mono",
-            iconFont: "CaskaydiaCove Nerd Font"
+            iconFont: "CaskaydiaCove Nerd Font",
+            apply: true
         },
         wallpaper: {
             dir: "~/Pictures/Wallpapers",

@@ -1,6 +1,8 @@
 """Shell lifecycle and legacy-compatibility tests for zesti."""
 
 import json
+import contextlib
+import io
 import os
 import subprocess
 import tempfile
@@ -96,6 +98,21 @@ class ShellLifecycleTest(unittest.TestCase):
         # No launch attempted.
         self.assertEqual(run.call_count, 1)
 
+    def test_failed_start_reports_quickshell_diagnostic(self):
+        run = Mock(side_effect=['No running instances', subprocess.CalledProcessError(
+            1, ['qs'], stderr='Could not load shell.qml')])
+        diagnostic = io.StringIO()
+        with contextlib.redirect_stderr(diagnostic):
+            rc = start_shell(type('NS', (), {})(), run=run)
+        self.assertEqual(rc, 1)
+        self.assertIn('Could not load shell.qml', diagnostic.getvalue())
+
+    def test_foreground_and_log_rules_reach_quickshell(self):
+        run = self._runner(['No running instances'])
+        start_shell(type('NS', (), {'foreground': True, 'log_rules': 'qtengine.*=true'})(), run=run)
+        self.assertEqual(run.call_args.args[0],
+                         ['qs', '-c', 'zestify', '-n', '--log-rules', 'qtengine.*=true'])
+
     def test_stop_graceful_then_force_after_timeout(self):
         pids = [100, 101]
         run = self._runner([json.dumps([{"pid": p} for p in pids])])
@@ -119,8 +136,8 @@ class ShellLifecycleTest(unittest.TestCase):
         rc = stop_shell(run=run)
         self.assertEqual(rc, 0)
 
-    def test_status_json_parses_instance_list(self):
-        run = self._runner([json.dumps([{"pid": 5}])])
+    def test_status_json_accepts_ping_response(self):
+        run = self._runner(["pong\n"])
         rc = shell_status(run=run, json_output=True)
         self.assertEqual(rc, 0)
 
@@ -146,8 +163,31 @@ class ShellLifecycleTest(unittest.TestCase):
         launch = [c.args[0] for c in run.call_args_list if c.args[0][0] == "qs"]
         self.assertIn(["qs", "-c", "zestify", "-n", "-d"], launch)
 
+    def test_start_and_restart_publish_custom_desktop_config_identity(self):
+        with patch.dict(os.environ, {"XDG_CONFIG_HOME": "/tmp/custom-desktop-config"}):
+            for action in ("start", "restart"):
+                with self.subTest(action=action):
+                    run = self._runner(["No running instances"])
+                    if action == "start":
+                        start_shell(type("NS", (), {})(), run=run)
+                    else:
+                        shell_restart(run=run)
+                    self.assertEqual(run.call_args.kwargs["env"]["ZESTI_DESKTOP_CONFIG_HOME"],
+                                     "/tmp/custom-desktop-config")
+
 
 class ShellHandlersTest(unittest.TestCase):
+    def test_open_reports_missing_shell_instead_of_success(self):
+        run = Mock(side_effect=subprocess.CalledProcessError(1, ['qs'], stderr='No running instances'))
+        diagnostic = io.StringIO()
+        with contextlib.redirect_stderr(diagnostic):
+            rc = shell_open(type('NS', (), {'surface': 'launcher'})(), run=run)
+        self.assertEqual(rc, 1)
+        self.assertIn('No running instances', diagnostic.getvalue())
+
+    def test_plain_status_reports_absent_shell(self):
+        self.assertEqual(shell_status(run=lambda *a, **k: 'No running instances'), 1)
+
     def test_open_shell_open(self):
         run = lambda cmd, **kwargs: ""
         rc = shell_open(type("NS", (), {"surface": "launcher"})(), run=run)
@@ -162,6 +202,11 @@ class ShellHandlersTest(unittest.TestCase):
 
 
 class ListInstancesTest(unittest.TestCase):
+    def test_uses_quickshell_instance_list_command(self):
+        run = Mock(return_value='[{"pid": 123}]')
+        self.assertEqual(list_instances(run), [{"pid": 123}])
+        run.assert_called_once_with(["qs", "list", "-c", "zestify", "--json"], check=False)
+
     def test_no_instances_text(self):
         run = lambda cmd, **kwargs: "No running instances"
         self.assertEqual(list_instances(run), [])

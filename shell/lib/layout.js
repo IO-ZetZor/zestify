@@ -13,3 +13,11 @@ function surfaceWidth(screenWidth, scale, margin) {
     const available = Math.max(1, screenWidth - m * 2);
     return Math.min(available, Math.max(280, 460 * scale));
 }
+
+function osdPlacement(position) {
+    const value = String(position || "bottom-center");
+    return {
+        top: value.indexOf("top-") === 0,
+        right: value.indexOf("-right") >= 0
+    };
+}

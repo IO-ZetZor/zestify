@@ -16,4 +16,18 @@ TestCase {
         verify(Layout.surfaceWidth(768, 0.711) <= 768);
         verify(Layout.surfaceWidth(1920, 1.111) > 0);
     }
+
+    function test_osd_placement_follows_configured_position() {
+        const topCenter = Layout.osdPlacement("top-center");
+        compare(topCenter.top, true);
+        compare(topCenter.right, false);
+
+        const bottomRight = Layout.osdPlacement("bottom-right");
+        compare(bottomRight.top, false);
+        compare(bottomRight.right, true);
+
+        const fallback = Layout.osdPlacement("unknown");
+        compare(fallback.top, false);
+        compare(fallback.right, false);
+    }
 }

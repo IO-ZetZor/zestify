@@ -91,72 +91,66 @@ if [[ ! -f "$CONFIG_DIR/cava.conf" ]]; then
     run cp "$ROOT/config/cava.conf" "$CONFIG_DIR/cava.conf"
 fi
 
+if [[ -f "$HYPR_CONF/zestify.lua" ]]; then
+    backup "$HYPR_CONF/zestify.lua"
+fi
 run cp "$ROOT/hypr/zestify.lua" "$HYPR_CONF/zestify.lua"
 
-if [[ -f "$BINDS" ]] && grep -Fq -- '>>> zestify-binds >>>' "$BINDS"; then
-    say "binds block already present"
-else
-    if (( ! DRY_RUN )); then
-        [[ -f "$BINDS" ]] || : > "$BINDS"
-        backup "$BINDS"
-    fi
-    say "appending zestify-binds block to $BINDS"
-    if (( ! DRY_RUN )); then
-        cat >> "$BINDS" <<'EOF'
-
--- >>> zestify-binds >>>
-dofile(os.getenv("HOME") .. "/.config/hypr/conf/zestify.lua")
--- <<< zestify-binds <<<
-EOF
-    fi
-fi
-
-if [[ -f "$AUTOSTART" ]] && grep -Fq -- '>>> zestify-autostart >>>' "$AUTOSTART"; then
-    say "autostart block already present"
-else
-    if (( ! DRY_RUN )); then
-        [[ -f "$AUTOSTART" ]] || : > "$AUTOSTART"
-        backup "$AUTOSTART"
-        python3 - "$AUTOSTART" <<'PY'
+say "updating Zestify keybind and autostart blocks"
+if (( ! DRY_RUN )); then
+    python3 - "$BINDS" "$AUTOSTART" <<'PY'
+import re
+import shutil
 import sys
+import time
 from pathlib import Path
 
-path = Path(sys.argv[1])
-text = path.read_text() if path.exists() else ""
-begin = ">>> zestify-autostart >>>"
-end = "<<< zestify-autostart <<<"
-if begin in text:
-    sys.exit(0)
 
-lines = text.splitlines(keepends=True)
-for index, line in enumerate(lines):
-    stripped = line.lstrip()
-    if stripped.startswith('hl.exec_cmd("caelestia shell")') and not stripped.startswith("--"):
-        indent = line[: len(line) - len(stripped)]
-        block = (
-            f"{indent}-- {begin}\n"
-            f"{indent}-- {stripped}\n"
-            f'{indent}hl.exec_cmd("zesti shell start")\n'
-            f"{indent}-- {end}\n"
-        )
-        lines[index : index + 1] = [block]
-        path.write_text("".join(lines))
-        break
-else:
-    if text and not text.endswith("\n"):
-        text += "\n"
-    if text:
-        text += "\n"
-    text += (
-        f"-- {begin}\n"
-        'hl.exec_cmd("zesti shell start")\n'
-        f"-- {end}\n"
-    )
-    path.write_text(text)
+def update(path, name, body):
+    text = path.read_text() if path.exists() else ""
+    begin = f">>> zestify-{name} >>>"
+    end = f"<<< zestify-{name} <<<"
+    pattern = re.compile(r"^([ \t]*)-- " + re.escape(begin)
+                         + r"[^\n]*\n.*?^[ \t]*-- " + re.escape(end)
+                         + r"[^\n]*(?:\n|$)", re.M | re.S)
+
+    def block(indent, comments="", at_login=False):
+        commands = body
+        if at_login:
+            commands = ['hl.on("hyprland.start", function()', *["    " + line for line in body], 'end)']
+        return (f"{indent}-- {begin}\n" + comments
+                + "".join(indent + line + "\n" for line in commands)
+                + f"{indent}-- {end}\n")
+
+    if begin in text:
+        if not pattern.search(text):
+            raise SystemExit(f"incomplete Zestify block in {path}; refusing to overwrite")
+        def replace(match):
+            comments = "".join(line + "\n" for line in match.group().splitlines()
+                               if line.lstrip().startswith('-- hl.exec_cmd("caelestia shell")'))
+            # Preserve the block's callback structure; indentation is not Lua scope.
+            at_login = name == "autostart" and bool(re.search(
+                r'hl\.on\(\s*[\'"]hyprland\.start[\'"]', match.group()))
+            return block(match.group(1), comments, at_login=at_login)
+        updated = pattern.sub(replace, text)
+    elif name == "autostart":
+        old = re.compile(r'^([ \t]*)(hl\.exec_cmd\("caelestia shell"\))[^\n]*(?:\n|$)', re.M)
+        if old.search(text):
+            updated = old.sub(lambda m: block(m.group(1), f"{m.group(1)}-- {m.group(2)}\n"), text)
+        else:
+            # No existing callback: register for login, not every config reload.
+            updated = text.rstrip("\n") + "\n\n" + block("", at_login=True)
+    else:
+        updated = text.rstrip("\n") + "\n\n" + block("")
+    if updated != text:
+        if path.exists():
+            shutil.copy2(path, str(path) + f".zestify.bak.{time.time_ns()}")
+        path.write_text(updated)
+
+
+update(Path(sys.argv[1]), "binds", ['require("conf.zestify")'])
+update(Path(sys.argv[2]), "autostart", ['hl.exec_cmd(require("conf.zestify").command("shell start"))'])
 PY
-    else
-        say "would replace the Caelestia autostart line with zesti shell start"
-    fi
 fi
 
 # Copy-only migration of Caelestia state into Zestify-owned state.

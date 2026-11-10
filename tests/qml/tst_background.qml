@@ -14,4 +14,12 @@ TestCase {
         verify(BackgroundLib.isFullscreen({ hasFullscreen: true }));
         verify(!BackgroundLib.isFullscreen({ hasFullscreen: false }));
     }
+
+    function test_obscured_mode_controls_pause() {
+        verify(BackgroundLib.shouldPauseForObscured("fullscreen", true, false));
+        verify(!BackgroundLib.shouldPauseForObscured("fullscreen", false, true));
+        verify(BackgroundLib.shouldPauseForObscured("any-window", false, true));
+        verify(!BackgroundLib.shouldPauseForObscured("any-window", true, false));
+        verify(!BackgroundLib.shouldPauseForObscured("never", true, true));
+    }
 }

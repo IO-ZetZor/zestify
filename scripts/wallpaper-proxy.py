@@ -70,12 +70,17 @@ def probe_fps(path: Path) -> float | None:
     return None
 
 
-def ensure(source: Path, width: int, height: int) -> int:
+def ensure(source: Path, width: int, height: int, codec: str = "h264", crf: int = 20) -> int:
     if not source.is_file():
         return fail("source not found: %s" % source)
     if width <= 0 or height <= 0:
         return fail("invalid target size: %sx%s" % (width, height))
-    codec, crf = "h264", 20
+    encoders = {"h264": "libx264", "h265": "libx265", "hevc": "libx265"}
+    encoder = encoders.get(codec)
+    if encoder is None:
+        return fail("unsupported codec: %s" % codec)
+    if crf < 0 or crf > 51:
+        return fail("invalid CRF: %s" % crf)
     out_fps = min(probe_fps(source) or 30.0, 30.0)
     key = key_for(source, width, height, codec, crf, out_fps)
     target = cache_root() / key / ("%sx%s.mp4" % (width, height))
@@ -87,9 +92,12 @@ def ensure(source: Path, width: int, height: int) -> int:
     filter_graph = "scale=%s:%s:force_original_aspect_ratio=increase,crop=%s:%s" % (width, height, width, height)
     command = [
         "ffmpeg", "-y", "-v", "error", "-i", str(source),
-        "-vf", filter_graph, "-r", "%.6g" % out_fps, "-c:v", "libx264", "-preset", "veryfast",
-        "-crf", str(crf), "-an", "-movflags", "+faststart", str(temp),
+        "-vf", filter_graph, "-r", "%.6g" % out_fps, "-c:v", encoder, "-preset", "veryfast",
+        "-crf", str(crf), "-an", "-movflags", "+faststart",
     ]
+    if codec in ("h265", "hevc"):
+        command += ["-tag:v", "hvc1"]
+    command.append(str(temp))
     try:
         result = subprocess.run(command, capture_output=True, timeout=300)
     except (OSError, subprocess.TimeoutExpired) as error:
@@ -114,9 +122,11 @@ def command_proxy(argv: list[str]) -> int:
     ensure_parser.add_argument("--source", required=True)
     ensure_parser.add_argument("--width", required=True, type=int)
     ensure_parser.add_argument("--height", required=True, type=int)
+    ensure_parser.add_argument("--codec", default="h264", choices=["h264", "h265", "hevc"])
+    ensure_parser.add_argument("--crf", default=20, type=int)
     args = parser.parse_args(argv)
     if args.command == "ensure":
-        return ensure(Path(args.source).expanduser(), args.width, args.height)
+        return ensure(Path(args.source).expanduser(), args.width, args.height, args.codec, args.crf)
     return fail("unknown proxy command")
 
 

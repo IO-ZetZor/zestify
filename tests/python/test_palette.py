@@ -185,6 +185,24 @@ class GeneratePaletteTest(unittest.TestCase):
         # save is never called: scheme file remains byte-identical
         self.assertEqual(before.read_text(), '{"primary": "112233"}')
 
+    def test_video_uses_hide_banner_flag(self):
+        video = self.root / "clip.mp4"
+        video.write_bytes(b"mp4")
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            Image.new("RGB", (1, 1), (23, 41, 54)).save(cmd[-1], "PNG")
+            return 0
+
+        settings = PaletteSettings(mode="dark", variant="tonalspot")
+        with patch("zesti.palette.ImageQuantizeCelebi") as quantize:
+            quantize.return_value = {0xFF172936: 100, 0xFF000000: 10}
+            generate_palette(video, settings, run=run)
+        self.assertIn("ffmpeg", calls[0])
+        self.assertIn("-hide_banner", calls[0])
+        self.assertNotIn("-hide-banner", calls[0])
+
 
 if __name__ == "__main__":
     unittest.main()

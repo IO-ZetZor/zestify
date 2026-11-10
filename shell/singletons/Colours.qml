@@ -4,6 +4,7 @@ import QtQml.Models
 import Quickshell
 import Quickshell.Io
 import "../lib/scheme.js" as Scheme
+import "."
 
 Singleton {
     id: root
@@ -30,7 +31,7 @@ Singleton {
 
     function coloursFor(screenName) {
         const scheme = root.schemeFor(screenName);
-        return scheme.colours || root.fallback.colours;
+        return Scheme.coloursFor(scheme, Config.theme.mode);
     }
 
     function reload() {

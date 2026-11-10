@@ -79,6 +79,33 @@ class ListWallpapersTest(unittest.TestCase):
     def test_list_empty_dir(self):
         self.assertEqual(list_wallpapers(self.dir), [])
 
+    def test_list_generates_video_thumbnails_when_services_are_supplied(self):
+        (self.dir / "still.png").write_bytes(b"x")
+        (self.dir / "clip.mp4").write_bytes(b"x")
+        paths = Paths.from_env({
+            "XDG_STATE_HOME": str(self.dir / "state"),
+            "XDG_CACHE_HOME": str(self.dir / "cache"),
+            "XDG_CONFIG_HOME": str(self.dir / "config"),
+        })
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            out = Path(cmd[-1])
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(b"jpg")
+            return 0
+
+        items = list_wallpapers(self.dir, paths, run)
+        by_name = {it["name"]: it for it in items}
+        self.assertEqual(by_name["still.png"]["thumb"], str((self.dir / "still.png").resolve()))
+        self.assertTrue(by_name["clip.mp4"]["thumb"].endswith(".jpg"))
+        self.assertTrue(Path(by_name["clip.mp4"]["thumb"]).exists())
+        self.assertNotEqual(
+            by_name["clip.mp4"]["thumb"], str((self.dir / "clip.mp4").resolve())
+        )
+        self.assertTrue(any("ffmpeg" in str(c[0]) for c in calls))
+
 
 class EffectiveWallpaperTest(unittest.TestCase):
     def setUp(self):
@@ -171,7 +198,8 @@ class SetWallpaperTest(unittest.TestCase):
         self.assertEqual(len(calls["scheme"]), 1)
 
     def test_secondary_set_writes_only_monitor(self):
-        services, _ = self.services()
+        services, calls = self.services()
+        self.paths.scheme_file.write_text('{"colours": {"primary": "112233"}}')
         result = set_wallpaper(
             self.image, WallpaperTarget("monitor", "HDMI-A-1"), self.paths, services
         )
@@ -181,6 +209,37 @@ class SetWallpaperTest(unittest.TestCase):
         )
         # global path must not be created/changed
         self.assertFalse((self.paths.wallpaper_dir / "path.txt").exists())
+        self.assertEqual(calls["scheme"], [])
+        self.assertEqual(calls["theme"], [])
+        self.assertEqual(self.paths.scheme_file.read_text(), '{"colours": {"primary": "112233"}}')
+
+    def test_primary_override_applies_application_palette(self):
+        services, calls = self.services()
+        result = set_wallpaper(self.image, WallpaperTarget("monitor", "eDP-1"), self.paths, services)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(calls["scheme"], [])
+        self.assertEqual(len(calls["theme"]), 1)
+
+    def test_theme_failure_is_reported_without_rolling_back_wallpaper(self):
+        services, calls = self.services()
+        from dataclasses import replace
+        def failing_theme(scheme):
+            raise RuntimeError("cannot write app config")
+        services = replace(services, theme_applier=failing_theme)
+        result = set_wallpaper(self.image, WallpaperTarget("global"), self.paths, services)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(len(calls["scheme"]), 1)
+        self.assertFalse(result["theme"][0]["ok"])
+        self.assertIn("cannot write app config", result["theme"][0]["error"])
+
+    def test_all_clears_old_monitor_palettes(self):
+        self.paths.monitor_dir.mkdir(parents=True)
+        palette = self.paths.monitor_dir / "hdmi-a-1-scheme.json"
+        palette.write_text('{"colours": {"primary": "112233"}}')
+        services, _ = self.services()
+        result = set_wallpaper(self.image, WallpaperTarget("all"), self.paths, services)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(json.loads(palette.read_text()), {})
 
     def test_all_truncates_overrides_without_unlink(self):
         paths = self.paths
@@ -206,6 +265,63 @@ class SetWallpaperTest(unittest.TestCase):
         chosen = Path(result["path"])
         self.assertNotEqual(chosen, self.image)
         self.assertIn(chosen, [wall_dir / "still.png", wall_dir / "other.png"])
+
+    def test_random_monitor_writes_only_monitor_override(self):
+        wall_dir = self.home / "monitor-pics"
+        wall_dir.mkdir()
+        (wall_dir / "only.png").write_bytes(b"png")
+        services, _ = self.services()
+        result = set_wallpaper(
+            wall_dir,
+            WallpaperTarget("monitor", "eDP-1", random=True),
+            self.paths,
+            services,
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(
+            (self.paths.monitor_dir / "edp-1.txt").read_text().strip(),
+            str((wall_dir / "only.png").resolve()),
+        )
+        self.assertFalse((self.paths.wallpaper_dir / "path.txt").exists())
+
+    def test_random_all_writes_global_and_clears_overrides(self):
+        wall_dir = self.home / "all-pics"
+        wall_dir.mkdir()
+        (wall_dir / "only.png").write_bytes(b"png")
+        self.paths.monitor_dir.mkdir(parents=True)
+        (self.paths.monitor_dir / "edp-1.txt").write_text("/old/override.png")
+        services, _ = self.services()
+        result = set_wallpaper(
+            wall_dir, WallpaperTarget("all", random=True), self.paths, services
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(
+            (self.paths.wallpaper_dir / "path.txt").read_text().strip(),
+            str((wall_dir / "only.png").resolve()),
+        )
+        self.assertEqual((self.paths.monitor_dir / "edp-1.txt").read_text().strip(), "")
+
+    def test_random_no_filter_may_choose_video(self):
+        wall_dir = self.home / "video-pics"
+        wall_dir.mkdir()
+        video = wall_dir / "clip.mp4"
+        video.write_bytes(b"mp4")
+
+        def run(cmd, **kwargs):
+            out = Path(cmd[-1])
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(b"jpg")
+            return 0
+
+        services, _ = self.services(run=run)
+        result = set_wallpaper(
+            wall_dir,
+            WallpaperTarget("global", random=True, no_filter=True),
+            self.paths,
+            services,
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(Path(result["path"]), video.resolve())
 
     def test_missing_file_returns_error_and_leaves_state_untouched(self):
         services, calls = self.services()
@@ -273,6 +389,8 @@ class ExtractPaletteSourceTest(unittest.TestCase):
         result = extract_palette_source(self.video, self.paths, run)
         self.assertTrue(result.exists() and result.stat().st_size > 0)
         self.assertTrue(any("ffmpeg" in str(c[0]) for c in calls))
+        self.assertIn("-hide_banner", calls[0])
+        self.assertNotIn("-hide-banner", calls[0])
 
     def test_video_frame_failure_raises(self):
         def run(cmd, **kwargs):
@@ -300,7 +418,7 @@ class MakeThumbnailTest(unittest.TestCase):
             make_thumbnail(self.image, self.paths, lambda *a: 0), self.image.resolve()
         )
 
-    def test_video_ensures_cached_frame_and_returns_source(self):
+    def test_video_returns_cached_frame(self):
         calls = []
 
         def run(cmd, **kwargs):
@@ -312,6 +430,12 @@ class MakeThumbnailTest(unittest.TestCase):
 
         result = make_thumbnail(self.video, self.paths, run)
         self.assertTrue(any("ffmpeg" in str(c[0]) for c in calls))
+        self.assertEqual(result.suffix.lower(), ".jpg")
+        self.assertTrue(result.exists())
+        self.assertNotEqual(result, self.video.resolve())
+
+    def test_video_falls_back_to_source_when_frame_fails(self):
+        result = make_thumbnail(self.video, self.paths, lambda *a, **k: 1)
         self.assertEqual(result, self.video.resolve())
 
 

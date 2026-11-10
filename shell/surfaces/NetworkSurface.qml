@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Networking
+import "../components"
 import "../lib/format.js" as Format
 
 SurfaceFrame {
@@ -335,6 +336,12 @@ SurfaceFrame {
             horizontalAlignment: Text.AlignHCenter
             font.family: root.theme.fontFamily
             font.pixelSize: root.theme.fs.meta * root.s
+        }
+
+        SpeedTestControl {
+            Layout.fillWidth: true
+            theme: root.theme
+            s: root.s
         }
 
         Rectangle {

@@ -33,4 +33,40 @@ TestCase {
         compare(String(theme.withAlpha("#bfc4ee", 0.25)), "#40bfc4ee");
         theme.destroy();
     }
+
+    function test_wallpaper_palette_switches_mode_live() {
+        const theme = themeComponent.createObject(null, {
+            mode: "dark",
+            scheme: {
+                colors: {
+                    primary: { dark: { color: "#80aabb" }, light: { color: "#225566" } },
+                    on_surface: { dark: { color: "#eeeeee" }, light: { color: "#111111" } },
+                    surface: { dark: { color: "#111111" }, light: { color: "#eeeeee" } }
+                }
+            }
+        });
+        verify(theme !== null);
+        compare(String(theme.accent), "#80aabb");
+        compare(String(theme.surface), "#111111");
+        theme.mode = "light";
+        compare(String(theme.accent), "#225566");
+        compare(String(theme.surface), "#eeeeee");
+        compare(String(theme.cream), "#111111");
+        theme.destroy();
+    }
+
+    function test_saved_palette_switches_mode_live() {
+        const theme = themeComponent.createObject(null, {
+            mode: "dark",
+            scheme: {
+                colours: { primary: "80aabb" },
+                palettes: { dark: { primary: "80aabb" }, light: { primary: "225566" } }
+            }
+        });
+        verify(theme !== null);
+        compare(String(theme.accent), "#80aabb");
+        theme.mode = "light";
+        compare(String(theme.accent), "#225566");
+        theme.destroy();
+    }
 }

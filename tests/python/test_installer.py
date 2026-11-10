@@ -1,5 +1,7 @@
 import json
 import os
+import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -84,11 +86,11 @@ class InstallerTest(unittest.TestCase):
 
         binds = (self.conf / "binds.lua").read_text()
         self.assertEqual(binds.count(">>> zestify-binds >>>"), 1)
-        self.assertIn('dofile(os.getenv("HOME") .. "/.config/hypr/conf/zestify.lua")', binds)
+        self.assertIn('require("conf.zestify")', binds)
 
         autostart = (self.conf / "autostart.lua").read_text()
         self.assertEqual(autostart.count(">>> zestify-autostart >>>"), 1)
-        self.assertIn('hl.exec_cmd("zesti shell start")', autostart)
+        self.assertIn('hl.exec_cmd(require("conf.zestify").command("shell start"))', autostart)
         self.assertIn('-- hl.exec_cmd("caelestia shell")', autostart)
         self.assertNotIn('\n    hl.exec_cmd("caelestia shell")\n', autostart)
         self.assertTrue(list(self.conf.glob("*.zestify.bak.*")))
@@ -102,6 +104,81 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(text.count(">>> zestify-binds >>>"), 1)
         self.assertIn('hl.bind("SUPER + X"', text)
         self.assertEqual((self.conf / "autostart.lua").read_text().count(">>> zestify-autostart >>>"), 1)
+
+    def test_reinstall_upgrades_legacy_blocks_inside_startup_callback(self):
+        write(self.conf / "autostart.lua", 'hl.on("hyprland.start", function()\n'
+              '    hl.exec_cmd("keep-this-app")\n'
+              '    -- >>> zestify-autostart >>>\n'
+              '    -- hl.exec_cmd("caelestia shell")\n'
+              '    hl.exec_cmd("zestify start")\n'
+              '    -- <<< zestify-autostart <<<\nend)\n')
+        write(self.conf / "binds.lua", '-- >>> zestify-binds >>>\n'
+              'dofile(os.getenv("HOME") .. "/.config/hypr/conf/zestify.lua")\n'
+              '-- <<< zestify-binds <<<\n')
+        self.install()
+        startup = (self.conf / "autostart.lua").read_text()
+        self.assertNotIn('"zestify start"', startup)
+        self.assertIn('    hl.exec_cmd(require("conf.zestify").command("shell start"))', startup)
+        self.assertIn('hl.exec_cmd("keep-this-app")', startup)
+        self.assertIn('-- hl.exec_cmd("caelestia shell")', startup)
+        self.assertEqual(startup.count('hl.on("hyprland.start"'), 1)
+        self.assertNotIn('dofile', (self.conf / "binds.lua").read_text())
+
+    def test_missing_autostart_registers_login_event_and_stays_idempotent(self):
+        (self.conf / "autostart.lua").unlink()
+        self.install()
+        startup = (self.conf / "autostart.lua").read_text()
+        self.assertIn('hl.on("hyprland.start", function()', startup)
+        self.assertIn('    hl.exec_cmd(require("conf.zestify").command("shell start"))', startup)
+        self.install()
+        self.assertEqual((self.conf / "autostart.lua").read_text(), startup)
+
+    def test_unindented_existing_startup_callback_is_preserved(self):
+        write(self.conf / "autostart.lua", 'hl.on("hyprland.start", function()\n'
+              '-- >>> zestify-autostart >>>\nhl.exec_cmd("zestify start")\n'
+              '-- <<< zestify-autostart <<<\nend)\n')
+        self.install()
+        startup = (self.conf / "autostart.lua").read_text()
+        self.assertEqual(startup.count('hl.on("hyprland.start"'), 1)
+        self.assertIn('hl.exec_cmd(require("conf.zestify").command("shell start"))', startup)
+
+    def test_incomplete_managed_block_is_not_overwritten(self):
+        text = '-- >>> zestify-autostart >>>\nuser-content\n'
+        write(self.conf / "autostart.lua", text)
+        result = self.run_script("install.sh", "--no-start")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('incomplete Zestify block', result.stderr)
+        self.assertEqual((self.conf / "autostart.lua").read_text(), text)
+
+    @unittest.skipUnless(shutil.which("lua"), "Lua interpreter unavailable")
+    def test_lua_bindings_replace_duplicates_and_use_quoted_cli_override(self):
+        self.install()
+        executable = str(self.root / "user's tools" / "zesti")
+        env = dict(self.env, ZESTI_BIN=executable, ZESTIFY_BIN="wrong-legacy-cli")
+        harness = '''
+package.path = os.getenv("HOME") .. "/.config/hypr/?.lua;" .. package.path
+local bindings = { ["SUPER + Escape"] = "old lock", ["SUPER + P"] = "caelestia screenshot",
+                   ["SUPER + SHIFT + D"] = "keep scratchpad" }
+hl = { dsp = { exec_cmd = function(cmd) return cmd end },
+       unbind = function(key) bindings[key] = nil end,
+       bind = function(key, cmd) assert(bindings[key] == nil); bindings[key] = cmd end }
+local first = require("conf.zestify")
+local second = require("conf.zestify")
+assert(first == second)
+for key, cmd in pairs(bindings) do print(key .. "\\t" .. cmd) end
+print("START\\t" .. first.command("shell start"))
+'''
+        result = subprocess.run([shutil.which("lua"), "-"], input=harness,
+                                env=env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = dict(line.split("\t", 1) for line in result.stdout.splitlines())
+        self.assertEqual(commands.pop("SUPER + SHIFT + D"), "keep scratchpad")
+        expected = {"SUPER + Escape": ["lock"], "SUPER + D": ["shell", "open", "launcher"],
+                    "SUPER + W": ["shell", "open", "wallpaper"],
+                    "SUPER + P": ["capture", "screenshot"], "START": ["shell", "start"]}
+        self.assertEqual(set(commands), set(expected))
+        for key, arguments in expected.items():
+            self.assertEqual(shlex.split(commands[key]), [executable, *arguments])
 
     def test_dry_run_writes_nothing(self):
         result = self.run_script("install.sh", "--dry-run")

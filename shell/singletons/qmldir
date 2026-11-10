@@ -2,6 +2,7 @@ singleton Defaults 1.0 Defaults.qml
 singleton Config 1.0 Config.qml
 singleton Colours 1.0 Colours.qml
 singleton Stats 1.0 Stats.qml
+singleton SpeedTest 1.0 SpeedTest.qml
 singleton Wallpapers 1.0 Wallpapers.qml
 singleton Motion 1.0 Motion.qml
 singleton Players 1.0 Players.qml
