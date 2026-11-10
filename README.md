@@ -4,9 +4,6 @@ A minimal, hand-built Quickshell shell for Hyprland: one centered pill per
 monitor, a wallpaper-derived palette, native animated wallpaper backgrounds,
 and compact surfaces for the things you reach for most.
 
-Zestify replaces the Caelestia shell UI. It is designed for a single
-Quickshell process and does not depend on the Caelestia QML modules or CLI.
-
 ## Status
 
 The v1 scope is implemented: the bar, theming, wallpaper backend,
