@@ -1,0 +1,57 @@
+/* Zestify Dolphin: native palette roles follow Qt engine colour changes. */
+QToolBar {
+    background: palette(window);
+    border: none;
+    padding: 5px;
+    spacing: 4px;
+}
+QToolBar::separator { background: transparent; width: 6px; }
+QMainWindow::separator { background: palette(window); width: 5px; height: 5px; }
+QDockWidget { border: none; }
+QDockWidget::title { border: none; padding: 5px 8px; }
+QStatusBar { background: palette(window); border: none; }
+QStatusBar::item { border: none; }
+
+QToolButton, QPushButton {
+    border: none;
+    border-radius: 8px;
+    padding: 6px;
+}
+QToolButton:hover, QPushButton:hover { background: palette(alternate-base); }
+QToolButton:pressed, QToolButton:checked, QPushButton:pressed {
+    background: palette(highlight);
+    color: palette(highlighted-text);
+}
+QPushButton { background: palette(button); padding: 7px 14px; }
+QPushButton:focus { border: 1px solid palette(highlight); }
+QLineEdit, QComboBox, QSpinBox {
+    background: palette(base);
+    border: 1px solid palette(mid);
+    border-radius: 10px;
+    padding: 6px 9px;
+    selection-background-color: palette(highlight);
+    selection-color: palette(highlighted-text);
+}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: palette(highlight); }
+
+QMenu {
+    background: palette(window);
+    border: 1px solid palette(mid);
+    border-radius: 12px;
+    padding: 6px;
+}
+QMenu::item { padding: 7px 22px; border-radius: 7px; }
+QMenu::item:selected { background: palette(highlight); color: palette(highlighted-text); }
+QMenu::separator { height: 1px; background: palette(alternate-base); margin: 5px 10px; }
+QTabWidget::pane { border: none; }
+QTabBar::tab { border: none; border-radius: 8px; padding: 7px 12px; margin: 3px; }
+QTabBar::tab:selected { background: palette(alternate-base); }
+QAbstractItemView { border: none; outline: none; }
+QAbstractItemView::item { border-radius: 8px; padding: 4px; }
+QHeaderView::section { background: palette(window); border: none; padding: 6px; }
+
+QScrollBar:vertical { background: transparent; width: 8px; margin: 3px 1px; }
+QScrollBar:horizontal { background: transparent; height: 8px; margin: 1px 3px; }
+QScrollBar::handle { background: palette(mid); border-radius: 3px; min-width: 24px; min-height: 24px; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }

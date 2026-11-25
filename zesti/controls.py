@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -125,11 +126,13 @@ def config_command(action: str, paths: Paths, **kwargs) -> tuple[int, str]:
         except json.JSONDecodeError:
             return 1, "config is not valid JSON"
     if action == "edit":
-        editor = os.environ.get("EDITOR", "editor")
+        editor = shlex.split(os.environ.get("EDITOR", "editor"))
+        if not editor:
+            return 1, "no editor configured"
         try:
-            subprocess.run([editor, str(paths.config_file)], check=False)
+            result = subprocess.run([*editor, str(paths.config_file)], check=False)
         except FileNotFoundError:
-            pass
-        return 0, ""
+            return 1, f"missing editor: {editor[0]}"
+        return result.returncode, ""
     print(f"zesti: config: unknown action {action!r}", file=sys.stderr)
     return 2, ""

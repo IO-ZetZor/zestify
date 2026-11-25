@@ -16,6 +16,8 @@ Singleton {
         || (Quickshell.shellDir + "/../scripts")
 
     property bool locked: false
+    property bool locking: false
+    property var locker: null
     property bool dpmsActive: true
     property bool idleResetHeld: false
     property int lastBatteryWarning: 100
@@ -32,7 +34,7 @@ Singleton {
     }
     readonly property bool idleInhibited: shouldInhibitAudio(Players.isPlaying, Config.session.inhibitWhenAudio)
         || shouldInhibitCharging(root.charging, Config.session.inhibitWhenCharging)
-    readonly property bool idleEnabled: !locked && dpmsActive && !idleInhibited && !idleResetHeld
+    readonly property bool idleEnabled: !locked && !locking && dpmsActive && !idleInhibited && !idleResetHeld
 
     function shouldInhibitAudio(isPlaying, inhibitWhenAudio) {
         return SessionLib.shouldInhibitAudio(isPlaying, inhibitWhenAudio);
@@ -50,17 +52,24 @@ Singleton {
         return SessionLib.nextBatteryWarning(percent, lastWarned, warnings);
     }
 
-    function lock(wait) {
-        if (locked)
-            return;
-        const command = [root.cli, "lock"];
-        if (wait)
-            command.push("--wait");
-        Quickshell.execDetached(command);
+    function lock(wait, screenName, frame) {
+        if (!locker)
+            return false;
+        locker.requestLock(screenName || "", frame);
+        return locker.active;
     }
 
     function sleep() {
         Quickshell.execDetached([root.cli, "sleep"]);
+    }
+
+    function suspend(command) {
+        if (suspendProcess.running)
+            return;
+        suspendProcess.command = Config.session.lockBeforeSleep
+            ? [root.python, root.scriptsDir + "/lock.py", "--suspend"].concat(command)
+            : command;
+        suspendProcess.running = true;
     }
 
     function dpmsOff() {
@@ -122,6 +131,7 @@ Singleton {
         if (root.charging) {
             root.lastBatteryWarning = 100;
             root._hibernating = false;
+            criticalHibernateTimer.stop();
             return;
         }
         const percent = Math.round(Number(device.percentage) * 100);
@@ -135,9 +145,7 @@ Singleton {
                 "notify-send", "-a", "Zestify", "-u", "critical", "-t", "5000",
                 "Battery critical", "Hibernating in 5 seconds"
             ]);
-            Quickshell.execDetached([
-                "sh", "-c", "sleep 5; systemctl hibernate"
-            ]);
+            criticalHibernateTimer.start();
             return;
         }
         const next = SessionLib.nextBatteryWarning(
@@ -158,6 +166,22 @@ Singleton {
         interval: 30000
         repeat: true
         onTriggered: root.checkBattery()
+    }
+
+    Timer {
+        id: criticalHibernateTimer
+        interval: 5000
+        onTriggered: root.suspend(["systemctl", "hibernate"])
+    }
+
+    Process {
+        id: suspendProcess
+        stderr: StdioCollector { id: suspendError }
+        onExited: code => {
+            if (code !== 0)
+                Notifications.notify("Sleep failed", suspendError.text.trim() || "Could not suspend the session",
+                    "normal", "Zestify", 5000);
+        }
     }
 
     Timer {
@@ -198,7 +222,7 @@ Singleton {
         enabled: Config.session.suspendAfter > 0 && !root.idleInhibited && !root.idleResetHeld
         onIsIdleChanged: {
             if (isIdle && suspendIdle.enabled)
-                Quickshell.execDetached(Config.session.suspendCommand);
+                root.suspend(Config.session.suspendCommand);
         }
     }
 

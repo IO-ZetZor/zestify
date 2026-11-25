@@ -206,7 +206,7 @@ def _make_theme_applier(paths: Paths):
     return apply
 
 
-def _wallpaper_services() -> wallpaper_mod.WallpaperServices:
+def _wallpaper_services(no_smart: bool = False) -> wallpaper_mod.WallpaperServices:
     paths = Paths.from_env(os.environ)
     try:
         config = load_config(ROOT / "config" / "default.json", paths.config_file)
@@ -215,21 +215,27 @@ def _wallpaper_services() -> wallpaper_mod.WallpaperServices:
     mode = config.get("theme", {}).get("mode", "dark")
     if mode not in ("dark", "light"):
         mode = "dark"
+    settings = PaletteSettings(
+        mode=mode,
+        smart_scheme=not no_smart and config.get("theme", {}).get("smartScheme", True) is not False,
+    )
 
     def generate(source, settings, run):
         payload = palette_mod.generate_palette(source, settings, run)
+        variant = payload["scheme"]["variant"]
+        flavour = payload["scheme"]["flavour"]
         palettes = {}
-        for variant in ("dark", "light"):
+        for selected_mode in ("dark", "light"):
             metadata = palette_mod.SchemeMetadata(
-                name=source.stem, flavour=settings.variant, mode=variant,
-                variant=settings.variant, colours=len(payload["colors"]),
+                name=source.stem, flavour=flavour, mode=selected_mode,
+                variant=variant, colours=len(payload["colors"]),
             )
-            colours = palette_mod.normalize_matugen(payload, variant, metadata)
+            colours = palette_mod.normalize_matugen(payload, selected_mode, metadata)
             colours.pop("metadata")
-            palettes[variant] = colours
+            palettes[selected_mode] = colours
         return {
-            "name": source.stem, "flavour": settings.variant,
-            "mode": mode, "variant": settings.variant,
+            "name": source.stem, "flavour": flavour,
+            "mode": mode, "variant": variant,
             "colours": palettes[mode], "palettes": palettes,
         }
 
@@ -239,6 +245,7 @@ def _wallpaper_services() -> wallpaper_mod.WallpaperServices:
         theme_applier=_make_theme_applier(paths),
         run=_default_run,
         primary_monitor=config.get("monitor", {}).get("primary", "eDP-1"),
+        palette_settings=settings,
     )
 
 
@@ -272,7 +279,7 @@ def _wallpaper_get(args: argparse.Namespace) -> int:
 
 def _wallpaper_set(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
-    services = _wallpaper_services()
+    services = _wallpaper_services(getattr(args, "no_smart", False))
     if getattr(args, "all", False):
         target = wallpaper_mod.WallpaperTarget("all")
     elif getattr(args, "monitor", None):
@@ -286,7 +293,7 @@ def _wallpaper_set(args: argparse.Namespace) -> int:
 
 def _wallpaper_random(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
-    services = _wallpaper_services()
+    services = _wallpaper_services(getattr(args, "no_smart", False))
     directory = Path(getattr(args, "dir", None) or _wallpaper_config_dir(paths))
     no_filter = bool(getattr(args, "no_filter", False))
     if getattr(args, "all", False):
@@ -310,11 +317,21 @@ def _wallpaper_thumb(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _wallpaper_refresh(args: argparse.Namespace) -> int:
+    paths = Paths.from_env(os.environ)
+    result = wallpaper_mod.refresh_palettes(paths, _wallpaper_services())
+    if not result["ok"]:
+        print(f"zesti: {result['error']}", file=sys.stderr)
+    print(json.dumps(result, indent=2))
+    return EXIT_OK if result["ok"] else EXIT_RUNTIME
+
+
 def _wallpaper_print(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
     services = _wallpaper_services()
     settings = PaletteSettings(
-        mode=getattr(args, "mode", "smart"), variant=getattr(args, "variant", "tonalspot")
+        mode=getattr(args, "mode", "smart"), variant=getattr(args, "variant", None) or "tonalspot",
+        smart_scheme=services.palette_settings.smart_scheme and getattr(args, "variant", None) is None,
     )
     try:
         payload = palette_mod.generate_palette(
@@ -326,8 +343,8 @@ def _wallpaper_print(args: argparse.Namespace) -> int:
     scheme = palette_mod.normalize_matugen(
         payload,
         settings.mode,
-        scheme_mod.SchemeMetadata(
-            "print", settings.mode, settings.mode, settings.variant, 0
+        palette_mod.SchemeMetadata(
+            "print", payload["scheme"]["flavour"], payload["scheme"]["mode"], payload["scheme"]["variant"], 0
         ),
     )
     print(json.dumps(scheme, indent=2))
@@ -335,16 +352,66 @@ def _wallpaper_print(args: argparse.Namespace) -> int:
 
 
 def _capture_result_dict(result: capture_mod.CaptureResult) -> dict:
-    return {
+    data = {
         "ok": result.ok,
         "path": result.path,
         "error": result.error,
         "cancelled": result.cancelled,
     }
+    if result.recording is not None:
+        data["recording"] = result.recording
+    return data
+
+
+def _wallpaper_effects_setup(args: argparse.Namespace) -> int:
+    from zesti.wallfx import setup_runtime
+    try:
+        result = setup_runtime(Paths.from_env(os.environ))
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return EXIT_RUNTIME
+    print(json.dumps(result))
+    return EXIT_OK if result.get("ok") else EXIT_RUNTIME
+
+
+def _wallpaper_effects_prepare(args: argparse.Namespace) -> int:
+    from zesti.wallfx import prepare_effect, runtime_python
+    paths = Paths.from_env(os.environ)
+    try:
+        source = Path(args.source).expanduser()
+        if source.suffix.lower() in wallpaper_mod.VIDEO_EXTENSIONS:
+            if args.no_inference:
+                source = wallpaper_mod.cached_palette_source(source, paths) or source
+            else:
+                source = wallpaper_mod.extract_palette_source(source, paths, _default_run)
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return EXIT_RUNTIME
+    python = runtime_python(paths)
+    if python is not None and Path(sys.prefix) != python.parent.parent:
+        # The inference environment needs no palette/theming dependencies.
+        command = [str(python), str(ROOT / "scripts/wallpaper-effects.py"), "--source", str(source)]
+        if args.no_inference:
+            command.append("--no-inference")
+        try:
+            # Replace this process so Quickshell owns and can terminate the
+            # inference worker itself, without orphaning a nested interpreter.
+            os.execv(str(python), command)
+            return EXIT_OK
+        except OSError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}))
+            return EXIT_RUNTIME
+    try:
+        maps = prepare_effect(source, paths, allow_inference=not args.no_inference)
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return EXIT_RUNTIME
+    print(json.dumps({"ok": True, **maps}))
+    return EXIT_OK
 
 
 def _capture_services() -> capture_mod.CaptureServices:
-    return capture_mod.CaptureServices(run=_default_run)
+    return capture_mod.CaptureServices()
 
 
 def _capture_screenshot(args: argparse.Namespace) -> int:
@@ -361,7 +428,7 @@ def _capture_record_start(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
     options = capture_mod.RecordOptions(
         region=getattr(args, "region", None),
-        sound=bool(getattr(args, "sound", False)),
+        sound=bool(getattr(args, "sound", True)),
         monitor=getattr(args, "monitor", None),
     )
     result = capture_mod.record_start(options, paths, _capture_services())
@@ -392,8 +459,14 @@ def _capture_record_pause(args: argparse.Namespace) -> int:
     return EXIT_OK if result.ok else EXIT_RUNTIME
 
 
+def _capture_record_status(args: argparse.Namespace) -> int:
+    print(json.dumps(capture_mod.record_status(Paths.from_env(os.environ)), indent=2))
+    return EXIT_OK
+
+
 def _clipboard_pick(args: argparse.Namespace) -> int:
-    return desktop_mod.clipboard_pick(delete=bool(getattr(args, "delete", False)))
+    return desktop_mod.clipboard_pick(delete=bool(getattr(args, "delete", False))
+                                     or getattr(args, "action", None) == "delete")
 
 
 def _emoji_list(args: argparse.Namespace) -> int:
@@ -409,7 +482,7 @@ def _emoji_pick(args: argparse.Namespace) -> int:
 
 def _emoji_fetch(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
-    return desktop_mod.emoji_fetch(paths, lambda url: "")
+    return desktop_mod.emoji_fetch(paths)
 
 
 def _workspace_toggle(args: argparse.Namespace) -> int:
@@ -437,7 +510,8 @@ def _run_repo_script(script_name: str, argv: list[str]) -> int:
 def _proxy_ensure(args: argparse.Namespace) -> int:
     return _run_repo_script("wallpaper-proxy", ["proxy", "ensure", "--source", args.source,
                                                 "--width", str(args.width), "--height", str(args.height),
-                                                "--codec", args.codec, "--crf", str(args.crf)])
+                                                "--codec", args.codec, "--crf", str(args.crf),
+                                                "--max-fps", str(args.max_fps)])
 
 
 def _proxy(args: argparse.Namespace) -> int:
@@ -452,12 +526,15 @@ def _cache_status(args: argparse.Namespace) -> int:
 
 
 def _cache_prune(args: argparse.Namespace) -> int:
-    return _run_repo_script("wallpaper-proxy", ["cache", "prune", "--keep", *args.keep])
+    argv = ["cache", "prune"]
+    for key in args.keep:
+        argv.extend(["--keep", key])
+    return _run_repo_script("wallpaper-proxy", argv)
 
 
 def _sleep(args: argparse.Namespace) -> int:
     """Lock the session, then suspend (lock-before-sleep per spec)."""
-    lock_rc = _run_repo_script("lock", ["--config-only"])
+    lock_rc = _run_repo_script("lock", [])
     if lock_rc != 0:
         return lock_rc
     try:
@@ -477,18 +554,18 @@ def _migrate(args: argparse.Namespace) -> int:
 
 def _volume(args: argparse.Namespace) -> int:
     if args.action == "set":
-        return controls_mod.volume("set", args.value, run=_default_run)
-    return controls_mod.volume(args.action, run=_default_run)
+        return controls_mod.volume("set", args.value)
+    return controls_mod.volume(args.action)
 
 
 def _mic(args: argparse.Namespace) -> int:
-    return controls_mod.mic(args.action, run=_default_run)
+    return controls_mod.mic(args.action)
 
 
 def _brightness(args: argparse.Namespace) -> int:
     if args.action == "set":
-        return controls_mod.brightness("set", args.value, run=_default_run)
-    return controls_mod.brightness(args.action, run=_default_run)
+        return controls_mod.brightness("set", args.value)
+    return controls_mod.brightness(args.action)
 
 
 def _config(args: argparse.Namespace) -> int:
@@ -501,9 +578,9 @@ def _config(args: argparse.Namespace) -> int:
 
 def _doctor(args: argparse.Namespace) -> int:
     paths = Paths.from_env(os.environ)
-    result = operations_mod.doctor(paths, _default_run, json_output=args.json)
-    print(result if isinstance(result, str) else json.dumps(result, indent=2))
-    return EXIT_OK
+    result = operations_mod.doctor(paths)
+    print(json.dumps(result, indent=2))
+    return EXIT_OK if result["required_ok"] and result["paths_ok"] else EXIT_RUNTIME
 
 
 def _install(args: argparse.Namespace) -> int:
@@ -511,14 +588,7 @@ def _install(args: argparse.Namespace) -> int:
 
 
 def _update(args: argparse.Namespace) -> int:
-    services = {
-        "run": _default_run,
-        "is_attached": lambda: True,
-        "is_dirty": lambda: False,
-        "is_detached": lambda: False,
-        "has_upstream": lambda: True,
-    }
-    return operations_mod.update(ROOT, check_only=args.check, services=services)
+    return operations_mod.update(ROOT, check_only=args.check)
 
 
 def _lock(args: argparse.Namespace) -> int:
@@ -527,10 +597,6 @@ def _lock(args: argparse.Namespace) -> int:
     forward: list[str] = []
     if getattr(args, "wait", False):
         forward.append("--wait")
-    if getattr(args, "config_only", False):
-        forward.append("--config-only")
-    if getattr(args, "out", None):
-        forward.extend(["--out", args.out])
     return subprocess.run([sys.executable, str(lock_script)] + forward).returncode
 
 
@@ -604,11 +670,19 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     wt = wallpaper_sub.add_parser("thumb")
     wt.add_argument("file")
     wt.set_defaults(func=_wallpaper_thumb)
+    wallpaper_sub.add_parser("refresh", help="regenerate current wallpaper palettes").set_defaults(func=_wallpaper_refresh)
     wp = wallpaper_sub.add_parser("print")
     wp.add_argument("file")
     wp.add_argument("--mode", default="smart")
-    wp.add_argument("--variant", default="tonalspot")
+    wp.add_argument("--variant", choices=sorted(scheme_mod.VALID_VARIANTS))
     wp.set_defaults(func=_wallpaper_print)
+    effects = wallpaper_sub.add_parser("effects", help="prepare native wallpaper transitions")
+    effects_sub = effects.add_subparsers(dest="effects_command", required=True)
+    effects_sub.add_parser("setup", help="install the private BiRefNet runtime and model").set_defaults(func=_wallpaper_effects_setup)
+    prepare = effects_sub.add_parser("prepare", help="generate or load subject/colony maps")
+    prepare.add_argument("--source", required=True)
+    prepare.add_argument("--no-inference", action="store_true", help="use cached masks or colony maps")
+    prepare.set_defaults(func=_wallpaper_effects_prepare)
 
     # Theme.
     theme_parser = subparsers.add_parser("theme", help="application theme commands")
@@ -636,24 +710,28 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     capture_parser = subparsers.add_parser("capture", help="capture commands")
     capture_sub = capture_parser.add_subparsers(dest="subcommand", required=True)
     screenshot_parser = capture_sub.add_parser("screenshot")
-    screenshot_parser.add_argument("--region")
+    screenshot_parser.add_argument("--region", nargs="?", const="auto")
     screenshot_parser.add_argument("--freeze", action="store_true")
     screenshot_parser.set_defaults(func=_capture_screenshot)
     record_parser = capture_sub.add_parser("record")
     record_sub = record_parser.add_subparsers(dest="record_subcommand", required=True)
     rs = record_sub.add_parser("start")
-    rs.add_argument("--region")
-    rs.add_argument("--sound", action="store_true")
+    rs.add_argument("--region", nargs="?", const="auto")
+    audio = rs.add_mutually_exclusive_group()
+    audio.add_argument("--sound", dest="sound", action="store_true", help="record system audio (default)")
+    audio.add_argument("--no-sound", dest="sound", action="store_false", help="record without default system audio")
     rs.add_argument("--monitor")
-    rs.set_defaults(func=_capture_record_start)
+    rs.set_defaults(func=_capture_record_start, sound=True)
     rs = record_sub.add_parser("stop")
     rs.add_argument("--clipboard", action="store_true")
     rs.set_defaults(func=_capture_record_stop)
     record_sub.add_parser("toggle").set_defaults(func=_capture_record_toggle)
     record_sub.add_parser("pause").set_defaults(func=_capture_record_pause)
+    record_sub.add_parser("status").set_defaults(func=_capture_record_status)
 
     # Clipboard.
     clip_parser = subparsers.add_parser("clipboard", help="clipboard commands")
+    clip_parser.add_argument("action", nargs="?", choices=["pick", "delete"], default="pick")
     clip_parser.add_argument("--delete", action="store_true")
     clip_parser.set_defaults(func=_clipboard_pick)
 
@@ -694,11 +772,9 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
         p.add_argument("value", nargs="?")
         p.set_defaults(func=handler)
 
-    # Lock dispatches to scripts/lock.py (Zestify state, no Caelestia).
+    # Lock dispatches to scripts/lock.py (Zestify state).
     lock_parser = subparsers.add_parser("lock", help="lock the session")
-    lock_parser.add_argument("--wait", action="store_true")
-    lock_parser.add_argument("--config-only", action="store_true")
-    lock_parser.add_argument("--out")
+    lock_parser.add_argument("--wait", action="store_true", help="wait until the session is unlocked")
     lock_parser.set_defaults(func=_lock)
 
     # Config.
@@ -717,6 +793,7 @@ def build_parser(prog: str = "zesti") -> argparse.ArgumentParser:
     pe.add_argument("--height", required=True, type=int)
     pe.add_argument("--codec", default="h264", choices=["h264", "h265", "hevc"])
     pe.add_argument("--crf", default=20, type=int)
+    pe.add_argument("--max-fps", default=24, type=int)
     pe.set_defaults(func=_proxy)
 
     # Cache.

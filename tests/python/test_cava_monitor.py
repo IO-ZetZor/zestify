@@ -1,5 +1,12 @@
 import configparser
 import importlib.util
+import json
+import os
+import selectors
+import subprocess
+import struct
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -25,6 +32,88 @@ class ChunkedReader:
 
 
 class CavaMonitorTest(unittest.TestCase):
+    def test_party_stop_removes_temporary_config_and_reaps_cava(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            directory = Path(scratch)
+            record = directory / "capture.txt"
+            fake = directory / "cava"
+            fake.write_text(
+                f"#!{sys.executable}\n"
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "Path(os.environ['CAVA_TEST_RECORD']).write_text(sys.argv[2] + '\\n' + str(os.getpid()))\n"
+                "sys.stdout.buffer.write(bytes([1]) * 64)\n"
+                "sys.stdout.buffer.flush()\n"
+                "time.sleep(60)\n"
+            )
+            fake.chmod(0o755)
+            env = dict(os.environ, HOME=scratch, CAVA_TEST_RECORD=str(record),
+                       PATH=scratch + os.pathsep + os.environ.get("PATH", ""))
+            process = subprocess.Popen([sys.executable, str(CAVA_MONITOR), "--party"],
+                                       env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                with selectors.DefaultSelector() as selector:
+                    selector.register(process.stdout, selectors.EVENT_READ)
+                    self.assertTrue(selector.select(timeout=5), "monitor should emit a frame")
+                    packet = json.loads(process.stdout.readline())
+                    self.assertTrue(packet["fixedGain"])
+                    self.assertEqual(len(packet["levels"]), 32)
+                config_path, child_pid = record.read_text().splitlines()
+                self.assertTrue(Path(config_path).exists())
+                process.terminate()
+                self.assertEqual(process.wait(timeout=5), 0)
+                self.assertFalse(Path(config_path).exists(), "stop should unlink its temp config")
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(int(child_pid), 0)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+                process.stdout.close()
+                process.stderr.close()
+
+    def test_party_config_preserves_capture_and_format(self):
+        module = load_cava_monitor()
+        text = CAVA_CONFIG.read_text() + "\n[input]\nmethod = fifo\nsource = /tmp/music.fifo\n"
+        config = configparser.ConfigParser()
+        config.read_string(module.party_config(text))
+        self.assertEqual(config.getint("smoothing", "noise_reduction"), 0)
+        self.assertEqual(config.get("input", "method"), "fifo")
+        self.assertEqual(config.get("input", "source"), "/tmp/music.fifo")
+        self.assertEqual(config.getint("general", "bars"), 32)
+        self.assertEqual(config.getint("general", "framerate"), 60)
+        self.assertEqual(config.getint("output", "bit_format"), 16)
+        self.assertEqual(config.getint("general", "autosens"), 0)
+        self.assertEqual(config.getint("general", "sensitivity"), 100)
+        self.assertEqual(config.get("output", "channels"), "stereo")
+        self.assertIn("noise_reduction = 77", text, "the original config is untouched")
+
+    def test_party_config_handles_missing_option_and_section(self):
+        module = load_cava_monitor()
+        for text in ["[general]\nbars=32", "[smoothing]\nmonstercat=0\n[output]\nchannels=stereo"]:
+            config = configparser.ConfigParser()
+            config.read_string(module.party_config(text))
+            self.assertEqual(config.getint("smoothing", "noise_reduction"), 0)
+
+    def test_party_packet_preserves_sub_byte_impacts(self):
+        module = load_cava_monitor()
+        packet = module.party_packet(struct.pack("=32H", *([1, 255, 65535, 0] * 8)), 12)
+        self.assertEqual(packet["sequence"], 12)
+        self.assertEqual(packet["levels"][:4], [1 / 65535, 255 / 65535, 1, 0])
+        self.assertGreater(packet["time"], 0)
+        self.assertGreater(packet["emittedAt"], 0)
+
+    def test_frame_clock_keeps_batched_frames_spaced_and_recovers_stall(self):
+        clock = load_cava_monitor().FrameClock()
+        times = [clock.advance(value) for value in [1000, 1050, 1050, 1050, 1067]]
+        for before, after in zip(times, times[1:]):
+            self.assertGreater(after - before, 15)
+            self.assertLess(after - before, 18)
+        self.assertEqual(clock.advance(2000), 2000)
+        for _ in range(20):
+            before = clock.previous
+            self.assertGreater(clock.advance(2000), before)
+
     def test_short_reads_are_buffered_into_complete_frames(self):
         module = load_cava_monitor()
         stream = ChunkedReader([

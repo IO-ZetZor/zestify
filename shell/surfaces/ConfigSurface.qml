@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import "../components"
 import "../singletons"
 
@@ -19,12 +20,13 @@ SurfaceFrame {
     title: "Settings"
 
     readonly property var sectionOrder: [
-        "bar", "theme", "wallpaper", "system",
+        "bar", "focus", "theme", "wallpaper", "system",
         "notifications", "osd", "power", "session", "monitor"
     ]
 
     readonly property var sectionLabels: ({
         bar: "Bar",
+        focus: "Focus",
         theme: "Theme",
         wallpaper: "Wallpaper",
         system: "System",
@@ -91,12 +93,14 @@ SurfaceFrame {
 
     function choicesFor(path) {
         switch (path) {
+        case "monitor.secondaryMode":
+            return ["focus", "pill", "none"];
+        case "focus.mode":
+            return ["countdown", "stopwatch"];
         case "theme.mode":
             return ["dark", "light"];
         case "bar.trayOn":
             return ["primary", "all", "none"];
-        case "bar.titleOn":
-            return ["focused", "all"];
         case "wallpaper.pauseWhenObscured":
             return ["fullscreen", "any-window", "never"];
         case "wallpaper.proxy.codec":
@@ -116,6 +120,8 @@ SurfaceFrame {
 
     function rangeFor(path) {
         switch (path) {
+        case "focus.minutes":
+            return [1, 240, 1];
         case "theme.transparency":
             return [0.0, 1.0, 0.01];
         case "bar.opacity":
@@ -150,6 +156,8 @@ SurfaceFrame {
             return [0, 600, 10];
         case "wallpaper.proxy.crf":
             return [0, 51, 1];
+        case "wallpaper.proxy.maxFps":
+            return [1, 60, 1];
         default: {
             const value = Number(Config.value(path, 0)) || 0;
             return [0, Math.max(100, Math.ceil(value * 2 / 10) * 10), 1];
@@ -274,7 +282,8 @@ SurfaceFrame {
                 Text {
                     id: choiceLabel
                     anchors.centerIn: parent
-                    text: choiceChip.modelData
+                    text: choiceChip.modelData === "pill" ? "Full pill"
+                        : choiceChip.modelData.charAt(0).toUpperCase() + choiceChip.modelData.slice(1)
                     color: choiceChip.modelData === choiceRow.current ? root.theme.onAccent : root.theme.dim
                     font.family: root.theme.fontFamily
                     font.pixelSize: root.theme.fs.label * root.s
@@ -352,6 +361,56 @@ SurfaceFrame {
 
                 width: scroller.width
                 spacing: 8 * root.s
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: monitorColumn.implicitHeight + 16 * root.s
+                    radius: root.theme.r.tile * root.s
+                    color: root.theme.withAlpha(root.theme.surfaceHigh, 0.45)
+                    border.width: 1
+                    border.color: root.theme.withAlpha(root.theme.outline, 0.15)
+
+                    ColumnLayout {
+                        id: monitorColumn
+                        anchors.fill: parent
+                        anchors.margins: 8 * root.s
+                        spacing: 6 * root.s
+
+                        Text {
+                            text: "Display widgets"
+                            color: root.theme.cream
+                            font.family: root.theme.fontFamily
+                            font.pixelSize: root.theme.fs.body * root.s
+                        }
+                        Repeater {
+                            model: Quickshell.screens
+                            delegate: RowLayout {
+                                id: monitorRow
+                                required property var modelData
+                                objectName: "monitorWidgetRow-" + modelData.name
+                                readonly property bool primary: modelData.name === Config.monitor.activePrimary
+                                Layout.fillWidth: true
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: monitorRow.modelData.name + (monitorRow.primary ? " · Primary" : "")
+                                    color: root.theme.dim
+                                    font.family: root.theme.fontFamily
+                                    font.pixelSize: root.theme.fs.meta * root.s
+                                    elide: Text.ElideRight
+                                }
+                                ChoiceRow {
+                                    choices: monitorRow.primary ? ["pill"] : ["focus", "pill", "none"]
+                                    current: Config.monitor.modeFor(monitorRow.modelData.name)
+                                    onChosen: value => {
+                                        const overrides = Object.assign({}, Config.monitor.overrides);
+                                        overrides[monitorRow.modelData.name] = value;
+                                        Config.setValue("monitor.overrides", overrides);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Repeater {
                     model: root.sections

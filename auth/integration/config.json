@@ -1,0 +1,13 @@
+{
+  "vt": 7,
+  "greeterUser": "zestify-greeter",
+  "greeterCommand": ["/usr/bin/cage", "-s", "--", "/usr/bin/zestify-greeter"],
+  "sessions": [
+    {
+      "id": "hyprland",
+      "name": "Hyprland",
+      "desktop": "Hyprland",
+      "command": ["/usr/bin/dbus-run-session", "--", "/usr/bin/Hyprland"]
+    }
+  ]
+}

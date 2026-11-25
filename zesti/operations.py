@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Callable, Literal, Mapping
 
@@ -23,7 +25,7 @@ class DoctorReport(dict):
         super().__init__(kwargs)
 
 
-REQUIRED_TOOLS = ("qs", "python3", "ffmpeg", "hyprlock", "brightnessctl", "wpctl")
+REQUIRED_TOOLS = ("qs", "python3", "ffmpeg", "brightnessctl", "wpctl")
 
 OPTIONAL_TOOLS = {
     "matugen": "palette generation",
@@ -38,37 +40,29 @@ OPTIONAL_TOOLS = {
 
 
 def _default_run(cmd, **kwargs):
-    return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    kwargs.setdefault("text", True)
+    return subprocess.run(cmd, **kwargs)
 
 
-def _tool_available(tool, run) -> bool:
-    try:
-        res = run([tool], capture_output=True, text=True)
-        return res.returncode == 0
-    except FileNotFoundError:
-        return False
-    except Exception:
-        return False
-
-
-def doctor(paths: Paths, run: Callable = _default_run, *, json_output: bool = False):
+def doctor(paths: Paths, *, lookup: Callable = shutil.which, json_output: bool = False):
     """Check required and optional tooling plus writable XDG paths.
 
     Returns a :class:`DoctorReport` (a dict) unless ``json_output`` is set, in
     which case a JSON string is returned.
     """
-    paths = Paths(paths) if not isinstance(paths, Paths) else paths
-    required_missing = [t for t in REQUIRED_TOOLS if not _tool_available(t, run)]
-    optional_missing = [t for t in OPTIONAL_TOOLS if not _tool_available(t, run)]
+    required_missing = [t for t in REQUIRED_TOOLS if not lookup(t)]
+    optional_missing = [t for t in OPTIONAL_TOOLS if not lookup(t)]
 
     path_problems = []
     for name, p in (
-        ("config", paths.config_file),
-        ("state", paths.state_home),
-        ("cache", paths.cache_home),
+        ("config", paths.config_file.parent),
+        ("state", paths.state_home / "zestify"),
+        ("cache", paths.cache_home / "zestify"),
     ):
         try:
-            p.parent.mkdir(parents=True, exist_ok=True)
+            p.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryFile(dir=p):
+                pass
         except OSError as exc:
             path_problems.append(f"{name}: {exc}")
 
@@ -123,10 +117,27 @@ def update(
     repo = Path(repo)
     services = dict(services or {})
     runner = services.get("run", run)
-    is_attached = services.get("is_attached", lambda: True)()
-    is_dirty = services.get("is_dirty", lambda: False)()
-    is_detached = services.get("is_detached", lambda: False)()
-    has_upstream = services.get("has_upstream", lambda: False)()
+    def git(*args):
+        return runner(["git", "-C", str(repo), *args], capture_output=True, text=True)
+
+    def state(name, query):
+        return services[name]() if name in services else query()
+
+    try:
+        attached = state("is_attached", lambda: git("rev-parse", "--is-inside-work-tree").stdout.strip() == "true")
+        if not attached:
+            print("zesti: update: not a Git worktree; refusing", file=sys.stderr)
+            return 1
+        is_detached = state("is_detached", lambda: git("symbolic-ref", "--quiet", "HEAD").returncode != 0)
+        status = None if "is_dirty" in services else git("status", "--porcelain")
+        if status is not None and status.returncode != 0:
+            print("zesti: update: cannot inspect worktree; refusing", file=sys.stderr)
+            return 1
+        is_dirty = state("is_dirty", lambda: bool(status.stdout.strip()))
+        has_upstream = state("has_upstream", lambda: git("rev-parse", "--verify", "@{upstream}").returncode == 0)
+    except OSError as exc:
+        print(f"zesti: update: {exc}", file=sys.stderr)
+        return 1
 
     if is_detached:
         print("zesti: update: detached worktree; refusing", file=sys.stderr)
@@ -141,6 +152,10 @@ def update(
     if check_only:
         return 0
 
+    from zesti import shell
+
+    was_running = state("shell_was_running", lambda: bool(shell.list_instances()))
+
     res = runner(["git", "-C", str(repo), "pull", "--ff-only"])
     rc = getattr(res, "returncode", res) if not isinstance(res, int) else res
     if rc != 0:
@@ -148,9 +163,9 @@ def update(
         return rc
 
     # Reinstall and restart only if the shell was running.
-    install(repo, [], runner)
-    if services.get("shell_was_running", lambda: False)():
-        from zesti.shell import shell_status
-
-        shell_status()
+    rc = install(repo, ["--no-start"], runner)
+    if rc != 0:
+        return rc
+    if was_running:
+        return services.get("restart_shell", shell.shell_restart)()
     return 0

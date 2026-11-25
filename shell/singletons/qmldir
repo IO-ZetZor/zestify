@@ -4,12 +4,15 @@ singleton Colours 1.0 Colours.qml
 singleton Stats 1.0 Stats.qml
 singleton SpeedTest 1.0 SpeedTest.qml
 singleton Wallpapers 1.0 Wallpapers.qml
+singleton WallpaperEffects 1.0 WallpaperEffects.qml
 singleton Motion 1.0 Motion.qml
 singleton Players 1.0 Players.qml
 singleton Proxy 1.0 Proxy.qml
 singleton ShellState 1.0 ShellState.qml
 singleton Session 1.0 Session.qml
+singleton Capture 1.0 Capture.qml
 singleton Notifications 1.0 Notifications.qml
+singleton Focus 1.0 Focus.qml
 singleton Apps 1.0 Apps.qml
 singleton Appearance 1.0 Appearance.qml
 MonitorScheme 1.0 MonitorScheme.qml

@@ -18,6 +18,21 @@ PanelWindow {
     property bool dpmsOn: true
     property bool batteryLow: false
     property bool powerSaver: false
+    property bool previewing: false
+    property string wallpaperThumb: ""
+    property bool holdChanges: false
+    property string renderedPath: ""
+    property string renderedThumb: ""
+    property var renderedItem: null
+    readonly property var desiredItem: wallpaperPath.length ? {
+        path: isVideo ? WallpapersLib.videoSource(true, proxyPath, wallpaperPath) : wallpaperPath,
+        thumb: isVideo ? wallpaperThumb : wallpaperPath,
+        mapSource: wallpaperPath
+    } : null
+    property var motion
+    property var effects: null
+    property color transitionInk: "white"
+    property color transitionEmber: "orange"
 
     readonly property bool isVideo: WallpapersLib.isVideoPath(wallpaperPath)
     readonly property bool proxyEnabled: config ? config.wallpaper.proxy.enabled : true
@@ -40,8 +55,8 @@ PanelWindow {
             root.anyWindow);
     }
     property bool unfocusedPaused: false
-    readonly property bool shouldDecode: !locked && dpmsOn && !batteryLow && !powerSaver
-        && !obscured && !unfocusedPaused
+    readonly property bool shouldDecode: !previewing && !holdChanges && !locked && dpmsOn && !batteryLow && !powerSaver
+        && !obscured && !unfocusedPaused && (!proxy || !proxyEnabled || proxyPath.length > 0 || proxyFailed)
 
     property string proxyPath: ""
     property bool proxyFailed: false
@@ -50,6 +65,8 @@ PanelWindow {
     property int requestedHeight: 0
     property string requestedCodec: ""
     property int requestedCrf: -1
+    property int requestedMaxFps: -1
+    property int proxyRetryDelay: 5000
 
     screen: targetScreen
     color: "black"
@@ -68,7 +85,7 @@ PanelWindow {
         const source = wallpaperPath;
         const width = targetScreen ? targetScreen.width : 0;
         const height = targetScreen ? targetScreen.height : 0;
-        if (!WallpapersLib.isVideoPath(source) || !proxy || !proxyEnabled || proxy.busy)
+        if (!WallpapersLib.isVideoPath(source) || !proxy || !proxyEnabled || proxy.busy || proxyRetry.running)
             return;
         if (width <= 0 || height <= 0)
             return;
@@ -76,9 +93,11 @@ PanelWindow {
         const target = ProxyLib.resolutionSize(settings ? settings.resolution : "monitor", width, height);
         const codec = settings ? settings.codec : "h264";
         const crf = settings ? settings.crf : 20;
+        const maxFps = settings && settings.maxFps !== undefined ? settings.maxFps : 24;
         if (target.width <= 0 || target.height <= 0)
             return;
-        const settingsChanged = root.requestedCodec !== codec || root.requestedCrf !== crf;
+        const settingsChanged = root.requestedCodec !== codec || root.requestedCrf !== crf
+            || root.requestedMaxFps !== maxFps;
         if (!settingsChanged && !ProxyLib.needsRequest(source, requestedSource, proxyPath, proxyFailed,
                 requestedWidth, requestedHeight, target.width, target.height))
             return;
@@ -87,12 +106,15 @@ PanelWindow {
         requestedHeight = target.height;
         requestedCodec = codec;
         requestedCrf = crf;
+        requestedMaxFps = maxFps;
         proxyFailed = false;
         proxyPath = "";
-        proxy.ensure(source, target.width, target.height, codec, crf);
+        proxy.ensure(source, target.width, target.height, codec, crf, maxFps);
     }
 
     function resetProxy() {
+        proxyRetry.stop();
+        proxyRetryDelay = 5000;
         proxyPath = "";
         proxyFailed = false;
         requestedSource = "";
@@ -100,6 +122,7 @@ PanelWindow {
         requestedHeight = 0;
         requestedCodec = "";
         requestedCrf = -1;
+        requestedMaxFps = -1;
         ensureProxy();
     }
 
@@ -107,13 +130,23 @@ PanelWindow {
     onHeightChanged: ensureProxy()
 
     onWallpaperPathChanged: resetProxy()
+    function updateRendered() {
+        root.renderedPath = root.wallpaperPath;
+        root.renderedThumb = root.wallpaperThumb;
+        root.renderedItem = root.desiredItem;
+    }
+    onDesiredItemChanged: if (!holdChanges) updateRendered()
+    onHoldChangesChanged: if (!holdChanges) updateRendered()
 
     onMonitorFocusedChanged: {
         if (monitorFocused)
             unfocusedPaused = false;
     }
 
-    Component.onCompleted: ensureProxy()
+    Component.onCompleted: {
+        ensureProxy();
+        updateRendered();
+    }
 
     Timer {
         id: unfocusedTimer
@@ -136,18 +169,29 @@ PanelWindow {
                     root.wallpaperPath, root.requestedWidth, root.requestedHeight)) {
                 root.proxyPath = path;
                 root.proxyFailed = false;
+                root.proxyRetryDelay = 5000;
+                proxyRetry.stop();
             }
         }
         function onFailed(source, error) {
-            if (source === root.wallpaperPath) {
+            if (source === root.wallpaperPath && error !== "proxy busy") {
                 root.proxyFailed = true;
-                if (error !== "proxy busy")
-                    console.warn("zestify: wallpaper proxy failed:", error);
+                console.warn("zestify: wallpaper proxy failed:", error);
+                proxyRetry.start();
             }
         }
         function onBusyChanged() {
             if (!root.proxy.busy)
                 root.ensureProxy();
+        }
+    }
+
+    Timer {
+        id: proxyRetry
+        interval: root.proxyRetryDelay
+        onTriggered: {
+            root.proxyRetryDelay = Math.min(60000, root.proxyRetryDelay * 2);
+            root.ensureProxy();
         }
     }
 
@@ -158,20 +202,17 @@ PanelWindow {
         function onResolutionChanged() { root.resetProxy(); }
         function onCodecChanged() { root.resetProxy(); }
         function onCrfChanged() { root.resetProxy(); }
+        function onMaxFpsChanged() { root.resetProxy(); }
     }
 
-    WallpaperImage {
+    WallpaperTransition {
         anchors.fill: parent
-        path: root.wallpaperPath
-        visible: !root.isVideo
-    }
-
-    VideoWallpaper {
-        anchors.fill: parent
-        visible: root.isVideo
-        source: WallpapersLib.videoSource(root.isVideo, root.proxyPath, root.wallpaperPath)
-        playing: root.isVideo
-        shouldDecode: root.isVideo && root.shouldDecode
-        muted: root.config ? root.config.wallpaper.muted : true
+        item: root.renderedItem
+        motion: root.motion
+        effects: root.effects
+        ink: root.transitionInk
+        ember: root.transitionEmber
+        shouldDecode: root.shouldDecode
+        muted: root.previewing || root.holdChanges || (root.config ? root.config.wallpaper.muted : true)
     }
 }

@@ -1,0 +1,21 @@
+[Unit]
+Description=Zestify Display Manager
+After=systemd-user-sessions.service systemd-logind.service plymouth-quit.service
+Conflicts=getty@tty7.service
+PartOf=graphical.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+ExecStart=/usr/bin/zestify-dm
+Restart=on-failure
+RestartSec=2
+RuntimeDirectory=zestify-dm
+RuntimeDirectoryMode=0750
+UMask=0077
+KillMode=mixed
+TimeoutStopSec=20
+ExecStartPre=/usr/bin/systemd-tmpfiles --create /usr/lib/tmpfiles.d/zestify-dm.conf
+
+[Install]
+Alias=display-manager.service

@@ -9,6 +9,15 @@ Item {
     LockPull {
         id: gesture
         anchors.fill: parent
+        wallpaper: Component { Rectangle { color: "#334455" } }
+    }
+
+    Image {
+        id: handoffPreview
+        width: 500
+        height: 500
+        visible: false
+        asynchronous: false
     }
 
     TestCase {
@@ -31,6 +40,8 @@ Item {
             gesture.enabled = true;
             gesture.lockTimeout = 40000;
             gesture.reset();
+            handoffPreview.source = "";
+            handoffPreview.visible = false;
             lockSpy.clear();
             timeoutSpy.clear();
         }
@@ -45,6 +56,23 @@ Item {
             mouseMove(gesture, 250, 490);
             verify(!gesture.active);
             compare(lockSpy.count, 0);
+        }
+
+        function test_wallpaper_exists_only_during_the_gesture() {
+            const loader = findChild(gesture, "lockPullWallpaper");
+            const blur = findChild(gesture, "lockPullBlur");
+            verify(!blur.active);
+            compare(blur.item, null);
+            verify(!loader.active);
+            compare(loader.item, null);
+            pullTo(80);
+            verify(loader.active);
+            verify(loader.item !== null);
+            verify(blur.item !== null);
+            mouseRelease(gesture, 250, 80, Qt.LeftButton);
+            tryCompare(gesture, "active", false);
+            compare(loader.item, null);
+            compare(blur.item, null);
         }
 
         function test_press_away_from_edge_does_not_start() {
@@ -105,6 +133,39 @@ Item {
             compare(lockSpy.count, 0);
             mouseRelease(gesture, 250, 400, Qt.LeftButton);
             tryCompare(lockSpy, "count", 1);
+        }
+
+        function test_handoff_retains_background_after_curtain_is_reset() {
+            pullTo(490);
+            mouseRelease(gesture, 250, 490, Qt.LeftButton);
+            tryCompare(lockSpy, "count", 1);
+            const frame = lockSpy.signalArguments[0][0];
+            verify(frame !== null);
+            handoffPreview.source = frame.url;
+            compare(handoffPreview.status, Image.Ready);
+            handoffPreview.visible = true;
+            verify(waitForRendering(handoffPreview));
+            const background = grabImage(handoffPreview);
+            gesture.reset();
+            verify(waitForRendering(handoffPreview));
+            const retained = grabImage(handoffPreview);
+            for (let y = 20; y < 500; y += 40)
+                for (let x = 20; x < 500; x += 40) {
+                    compare(retained.red(x, y), background.red(x, y));
+                    compare(retained.green(x, y), background.green(x, y));
+                    compare(retained.blue(x, y), background.blue(x, y));
+                }
+        }
+
+        function test_reset_discards_pending_handoff() {
+            pullTo(490);
+            gesture.requestingLock = true;
+            gesture.pull = gesture.height;
+            gesture.handoffProgress = 1;
+            gesture.handOff();
+            gesture.reset();
+            wait(100);
+            compare(lockSpy.count, 0);
         }
 
         function test_pulling_back_up_cancels_even_after_bottom() {

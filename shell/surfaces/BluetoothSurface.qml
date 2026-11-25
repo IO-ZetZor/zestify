@@ -13,7 +13,28 @@ SurfaceFrame {
 
     title: "Bluetooth"
 
-    readonly property var adapter: Bluetooth.defaultAdapter
+    property var adapter: Bluetooth.defaultAdapter
+    property var scanAdapter: null
+    property bool ownsDiscovery: false
+
+    function releaseDiscovery() {
+        if (scanAdapter && ownsDiscovery)
+            scanAdapter.discovering = false;
+        scanAdapter = null;
+        ownsDiscovery = false;
+    }
+
+    function syncDiscovery() {
+        if (scanAdapter === adapter)
+            return;
+        releaseDiscovery();
+        scanAdapter = adapter;
+        if (scanAdapter) {
+            ownsDiscovery = !scanAdapter.discovering;
+            scanAdapter.discovering = true;
+        }
+    }
+    onAdapterChanged: syncDiscovery()
     readonly property var devices: adapter
         ? adapter.devices.values.filter(device => {
             const name = device.deviceName || device.name || "";
@@ -80,15 +101,8 @@ SurfaceFrame {
             device.connect();
     }
 
-    Component.onCompleted: {
-        if (root.adapter)
-            root.adapter.discovering = true;
-    }
-
-    Component.onDestruction: {
-        if (root.adapter)
-            root.adapter.discovering = false;
-    }
+    Component.onCompleted: syncDiscovery()
+    Component.onDestruction: releaseDiscovery()
 
     component ToggleSwitch: Rectangle {
         id: toggle

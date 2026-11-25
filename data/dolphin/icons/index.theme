@@ -1,0 +1,20 @@
+[Icon Theme]
+Name=Zestify Minimal
+Comment=Rounded outlines following the shell palette
+Inherits=breeze,hicolor
+FollowsColorScheme=true
+Directories=scalable/places,scalable/mimetypes
+
+[scalable/places]
+Size=32
+Type=Scalable
+MinSize=16
+MaxSize=512
+Context=Places
+
+[scalable/mimetypes]
+Size=32
+Type=Scalable
+MinSize=16
+MaxSize=512
+Context=MimeTypes

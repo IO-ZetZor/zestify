@@ -31,10 +31,29 @@ Item {
         return formatter ? formatter(value) : Math.round(value) + "%";
     }
 
-    onValuesChanged: plot.requestPaint()
-    onSecondaryValuesChanged: plot.requestPaint()
-    onMaximumChanged: plot.requestPaint()
-    onCapacityChanged: plot.requestPaint()
+    property var primaryPoints: []
+    property var secondaryPoints: []
+
+    function updateSeries(secondary) {
+        const before = secondary ? secondaryPoints : primaryPoints;
+        const after = Usage.points(secondary ? secondaryValues : values,
+            capacity, maximum, plot.width, plot.height - 2 * s);
+        const span = Usage.dirtySpan(before, after, plot.width, 3.5 * s + 1);
+        if (secondary) secondaryPoints = after;
+        else primaryPoints = after;
+        if (span && plot.available)
+            plot.markDirty(Qt.rect(span.x, 0, span.right - span.x, plot.height));
+    }
+    function rebuild() {
+        primaryPoints = Usage.points(values, capacity, maximum, plot.width, plot.height - 2 * s);
+        secondaryPoints = Usage.points(secondaryValues, capacity, maximum, plot.width, plot.height - 2 * s);
+        plot.requestPaint();
+    }
+    onValuesChanged: updateSeries(false)
+    onSecondaryValuesChanged: updateSeries(true)
+    onMaximumChanged: rebuild()
+    onCapacityChanged: rebuild()
+    onSChanged: rebuild()
     onColourChanged: plot.requestPaint()
     onSecondaryColourChanged: plot.requestPaint()
     onThemeChanged: plot.requestPaint()
@@ -56,28 +75,40 @@ Item {
         font.pixelSize: 8 * root.s
     }
 
+    // Retained scene-graph nodes do not repaint when the histories advance.
+    Repeater {
+        model: 3
+        delegate: Rectangle {
+            required property int index
+            x: plot.x
+            y: plot.y + Math.max(0, Math.min(plot.height - 1, plot.height * index / 2 - 0.5))
+            width: plot.width
+            height: 1
+            color: root.theme.withAlpha(root.theme.outline, 0.18)
+        }
+    }
+
     Canvas {
         id: plot
+        objectName: "usagePlot"
         anchors.fill: parent
         anchors.leftMargin: Math.max(28 * root.s, scaleLabel.implicitWidth + 8 * root.s)
         anchors.topMargin: 4 * root.s
         anchors.bottomMargin: 16 * root.s
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
+        onWidthChanged: root.rebuild()
+        onHeightChanged: root.rebuild()
+        onAvailableChanged: if (available) root.rebuild()
 
-        onPaint: {
+        onPaint: (region) => {
             if (!root.theme || width <= 0 || height <= 0)
                 return;
             const ctx = getContext("2d");
-            ctx.reset();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = String(root.theme.withAlpha(root.theme.outline, 0.18));
-            for (let i = 0; i < 3; i++) {
-                const y = Math.max(0.5, Math.min(height - 0.5, height * i / 2));
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-            }
-            function trace(values, colour, filled) {
-                const points = Usage.points(values, root.capacity, root.maximum, width, height - 2 * root.s);
+            ctx.save();
+            ctx.clearRect(region.x, region.y, region.width, region.height);
+            ctx.beginPath();
+            ctx.rect(region.x, region.y, region.width, region.height);
+            ctx.clip();
+            function trace(points, colour, filled) {
                 if (points.length === 0)
                     return;
                 if (filled && points.length > 1) {
@@ -100,8 +131,9 @@ Item {
                 const last = points[points.length - 1];
                 ctx.beginPath(); ctx.arc(last.x, last.y + root.s, 2.5 * root.s, 0, Math.PI * 2); ctx.fillStyle = String(colour); ctx.fill();
             }
-            trace(root.values, root.colour, true);
-            trace(root.secondaryValues, root.secondaryColour, false);
+            trace(root.primaryPoints, root.colour, true);
+            trace(root.secondaryPoints, root.secondaryColour, false);
+            ctx.restore();
         }
     }
 

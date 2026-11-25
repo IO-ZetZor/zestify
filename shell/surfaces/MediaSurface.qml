@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import "../components"
 import Quickshell.Services.Mpris
 import "../lib/time.js" as Time
+import "../singletons"
 
 SurfaceFrame {
     id: root
@@ -99,6 +100,7 @@ SurfaceFrame {
                 source: root.player ? root.player.trackArtUrl || "" : ""
                 playing: root.player && root.player.isPlaying
                 active: root.active && !(root.motion && root.motion.calm)
+                onLongPressed: ShellState.toggleParty(root.screen ? root.screen.name : "")
             }
 
             ColumnLayout {

@@ -21,10 +21,11 @@ Item {
     property real uiScale: 1
     property var windowObject
     property real topGap: 8
-    property bool showTitle: true
     property bool hovered: false
     property bool pinned: false
     property bool pointerInside: false
+    property bool partyVisible: false
+    property real fullscreenOpacity: fullscreenHidden ? 0 : 1
 
     readonly property var monitor: screen ? Hyprland.monitorFor(screen) : null
     readonly property var activeWorkspace: monitor ? monitor.activeWorkspace : null
@@ -41,12 +42,17 @@ Item {
     readonly property string scriptsDir: Quickshell.shellDir ? Quickshell.shellDir + "/../scripts" : ""
     readonly property real maxWidth: screen ? screen.width - 2 * theme.inset.side * s : 800
     readonly property bool locked: Session.locked
-    readonly property bool hovering: !locked && !fullscreen && (hovered || pinned || expanded)
+    readonly property bool partyOn: partyVisible || ShellState.isPartyOn(screen ? screen.name : "")
+    readonly property real partyBackgroundOpacity: Config.bar.opacity
+    readonly property bool hovering: !locked && !fullscreen && !partyOn
+        && (hovered || pinned || expanded)
 
-    readonly property string surface: ShellState.isOpenOn(screen ? screen.name : "")
+    readonly property string surface: ShellState.surface !== "wallpaper" && ShellState.isOpenOn(screen ? screen.name : "")
         ? ShellState.surface
         : ""
     readonly property bool expanded: surface.length > 0
+    readonly property bool fullscreenHidden: fullscreen && !expanded
+    readonly property bool morphing: widthMorph.running || heightMorph.running
     readonly property var currentSurface: {
         if (surface.length === 0)
             return null;
@@ -67,7 +73,6 @@ Item {
 
     readonly property var surfaceRegistry: ({
         "launcher": { title: "Launcher", width: 620, height: 620, component: launcherSurface },
-        "wallpaper": { title: "Wallpaper", width: 760, height: 600, component: wallpaperSurface },
         "system": { title: "System", width: 820, height: 690, component: systemSurface },
         "media": { title: "Media", width: 640, height: 480, component: mediaSurface },
         "audio": { title: "Audio", width: 660, height: 560, component: audioSurface },
@@ -75,7 +80,6 @@ Item {
         "network": { title: "Network", width: 620, height: 560, component: networkSurface },
         "bluetooth": { title: "Bluetooth", width: 620, height: 560, component: bluetoothSurface },
         "battery": { title: "Battery", width: 520, height: 500, component: batterySurface },
-        "power": { title: "Power", width: 660, height: 420, component: powerSurface },
         "config": { title: "Settings", width: 760, height: 620, component: configSurface }
     })
 
@@ -87,18 +91,26 @@ Item {
             : Math.min(restWidth, maxWidth))
     height: currentSurface ? Math.min(surfaceTotalHeight, screen.height - topGap) : (hovering ? hoverHeight : restHeight)
     clip: true
-    opacity: fullscreen ? 0 : 1
+    opacity: partyOn ? 0 : fullscreenOpacity
     visible: opacity > 0
 
-    Behavior on opacity {
+    Behavior on fullscreenOpacity {
         NumberAnimation {
             duration: root.motion ? root.motion.fast : 140
             easing.type: Easing.OutCubic
         }
     }
 
+    function partyElements() {
+        return modules.partyElements(root.restWidth - 2 * modules.x).map(spec => Object.assign({}, spec, {
+            x: (modules.x + spec.x) / root.restWidth,
+            y: (modules.y + spec.y) / root.restHeight
+        }));
+    }
+
     Behavior on height {
         NumberAnimation {
+            id: heightMorph
             duration: root.motion ? root.motion.morph : 420
             easing.type: Easing.BezierSpline
             easing.bezierCurve: root.motion ? root.motion.morphCurve : [0.16, 1, 0.3, 1, 1, 1]
@@ -107,6 +119,7 @@ Item {
 
     Behavior on width {
         NumberAnimation {
+            id: widthMorph
             duration: root.motion ? root.motion.morph : 420
             easing.type: Easing.BezierSpline
             easing.bezierCurve: root.motion ? root.motion.morphCurve : [0.16, 1, 0.3, 1, 1, 1]
@@ -114,6 +127,10 @@ Item {
     }
 
     function openSurface(name) {
+        if (name === "wallpaper") {
+            ShellState.open(name, screen ? screen.name : "");
+            return;
+        }
         if (!name || !surfaceRegistry[name])
             return;
         if (surface === name) {
@@ -157,27 +174,6 @@ Item {
     }
 
     Component {
-        id: wallpaperSurface
-
-        SurfaceFrame {
-            theme: root.theme
-            s: root.s
-            title: "Wallpaper"
-            onCloseRequested: root.closeSurface()
-
-            WallpaperStudio {
-                anchors.fill: parent
-                theme: root.theme
-                screen: root.screen
-                wallpapers: root.wallpapers
-                motion: root.motion
-                s: root.s
-                folder: root.wallpaperFolder
-            }
-        }
-    }
-
-    Component {
         id: systemSurface
 
         SystemSurface {
@@ -185,6 +181,7 @@ Item {
             s: root.s
             screen: root.screen
             stats: root.stats
+            sampling: !Session.locked && Session.dpmsActive
             motion: root.motion
             onCloseRequested: root.closeSurface()
         }
@@ -264,20 +261,6 @@ Item {
     }
 
     Component {
-        id: powerSurface
-
-        Power {
-            theme: root.theme
-            s: root.s
-            screen: root.screen
-            motion: root.motion
-            session: Session
-            confirmHoldMs: Config.power.confirmHoldMs
-            onCloseRequested: root.closeSurface()
-        }
-    }
-
-    Component {
         id: configSurface
 
         ConfigSurface {
@@ -336,21 +319,29 @@ Item {
 
     PillModules {
         id: modules
+        objectName: "pillModules"
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.leftMargin: root.theme.sp.l * root.s
         anchors.rightMargin: root.theme.sp.l * root.s
         height: root.restHeight
+        visible: opacity > 0
+        Behavior on opacity {
+            NumberAnimation { duration: root.motion ? root.motion.fast : 140; easing.type: Easing.OutCubic }
+        }
         theme: root.theme
         screen: root.screen
         stats: root.stats
+        players: root.players
+        motion: root.motion
+        scriptsDir: root.scriptsDir
+        hovering: root.hovering
+        mediaActive: Session.dpmsActive
         s: root.s
-        showTitle: root.showTitle
-            && (Config.bar.titleOn === "all" || (root.monitor && root.monitor.focused))
         showTray: Config.bar.showTray && root.screen
             && (Config.bar.trayOn === "all"
-                || (Config.bar.trayOn === "primary" && root.screen.name === Config.monitor.primary))
+                || (Config.bar.trayOn === "primary" && root.screen.name === Config.monitor.activePrimary))
         locked: root.locked
         windowObject: root.windowObject
         onCalendarRequested: root.openSurface("calendar")
@@ -358,13 +349,12 @@ Item {
         onNetworkRequested: root.openSurface("network")
         onBluetoothRequested: root.openSurface("bluetooth")
         onBatteryRequested: root.openSurface("battery")
-        onPowerRequested: root.openSurface("power")
-        onConfigRequested: root.openSurface("config")
         onLauncherRequested: root.openSurface("launcher")
     }
 
     RowLayout {
         id: hoverRow
+        objectName: "pillHoverRow"
         anchors.top: modules.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -372,8 +362,9 @@ Item {
         anchors.rightMargin: root.theme.sp.l * root.s
         height: root.hoverHeight - root.restHeight
         spacing: root.theme.sp.m * root.s
-        visible: root.hovering && root.surface.length === 0
-        opacity: visible ? 1 : 0
+        visible: opacity > 0
+        enabled: root.hovering && !root.expanded
+        opacity: root.hovering && !root.expanded ? 1 : 0
 
         Behavior on opacity {
             NumberAnimation {
@@ -401,18 +392,9 @@ Item {
                 motion: root.motion
                 scriptsDir: root.scriptsDir
                 active: root.hovering && root.surface.length === 0
+                onCoverActivated: root.openSurface("media")
+                onPartyRequested: ShellState.toggleParty(root.screen ? root.screen.name : "")
             }
-        }
-
-        QuickToggles {
-            Layout.alignment: Qt.AlignTop | Qt.AlignRight
-            Layout.topMargin: root.theme.sp.l * root.s
-            theme: root.theme
-            s: root.s
-            motion: root.motion
-            dnd: Notifications.dnd
-            onDndToggled: Notifications.toggleDnd()
-            onOpenWallpaper: function() { root.openSurface("wallpaper") }
         }
     }
 

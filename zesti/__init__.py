@@ -1,4 +1,4 @@
-"""Zesti CLI package: Caelestia-free Quickshell control and desktop utilities.
+"""Zesti CLI package: standalone Quickshell control and desktop utilities.
 
 Version is intentionally a single stable string; ``zesti --version`` prints it.
 """

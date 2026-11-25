@@ -1,0 +1,8 @@
+#%PAM-1.0
+# Arch Linux: adapt the include names when packaging for another distribution.
+auth       include    system-login
+account    include    system-login
+password   include    system-login
+session    include    system-login
+# A runtime directory and logind seat session are required by the daemon.
+session    required   pam_systemd.so

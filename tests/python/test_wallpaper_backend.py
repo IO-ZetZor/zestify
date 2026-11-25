@@ -1,4 +1,4 @@
-"""Unit tests for zesti.wallpaper — Zesti-owned wallpaper state (no Caelestia).
+"""Unit tests for zesti.wallpaper — Zesti-owned wallpaper state (no legacy shell).
 
 Tests inject a fake palette generator, scheme saver, theme applier, and process
 runner so no real desktop tool or the live desktop is touched.
@@ -8,8 +8,12 @@ import json
 import os
 import random
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from zesti import wallpaper as wallpaper_module
 
 from zesti.paths import Paths
 from zesti.wallpaper import (
@@ -213,6 +217,81 @@ class SetWallpaperTest(unittest.TestCase):
         self.assertEqual(calls["theme"], [])
         self.assertEqual(self.paths.scheme_file.read_text(), '{"colours": {"primary": "112233"}}')
 
+    def test_thumbnail_can_be_selected_without_destroying_it(self):
+        self.paths.wallpaper_dir.mkdir(parents=True)
+        thumbnail = self.paths.wallpaper_dir / "thumbnail.jpg"
+        thumbnail.write_bytes(b"original thumbnail")
+        services, _ = self.services()
+        self.assertTrue(set_wallpaper(thumbnail, WallpaperTarget("global"), self.paths, services)["ok"])
+        self.assertEqual(thumbnail.read_bytes(), b"original thumbnail")
+
+    def test_monitor_write_failure_restores_existing_and_removes_new_files(self):
+        self.paths.monitor_dir.mkdir(parents=True)
+        pointer = self.paths.monitor_dir / "dp-1.txt"
+        palette = self.paths.monitor_dir / "dp-1-scheme.json"
+        write = wallpaper_module.atomic_write
+        for existing in [True, False]:
+            if existing:
+                pointer.write_bytes(b"old wallpaper")
+                palette.write_bytes(b"old palette")
+            else:
+                pointer.unlink(missing_ok=True)
+                palette.unlink(missing_ok=True)
+            def fail(path, contents):
+                if path == palette:
+                    raise OSError("simulated palette write failure")
+                write(path, contents)
+            services, calls = self.services()
+            with self.subTest(existing=existing), patch.object(wallpaper_module, "atomic_write", side_effect=fail):
+                result = set_wallpaper(self.image, WallpaperTarget("monitor", "DP-1"), self.paths, services)
+            self.assertFalse(result["ok"])
+            self.assertEqual(calls["theme"], [])
+            if existing:
+                self.assertEqual(pointer.read_bytes(), b"old wallpaper")
+                self.assertEqual(palette.read_bytes(), b"old palette")
+            else:
+                self.assertFalse(pointer.exists())
+                self.assertFalse(palette.exists())
+        self.assertEqual(list(self.paths.wallpaper_dir.glob(".transaction-*")), [])
+
+    def test_global_scheme_failure_rolls_back_all_state(self):
+        from dataclasses import replace
+        self.paths.monitor_dir.mkdir(parents=True)
+        files = [self.paths.wallpaper_dir / "path.txt", self.paths.wallpaper_dir / "current",
+                 self.paths.wallpaper_dir / "thumbnail.jpg", self.paths.scheme_file,
+                 self.paths.monitor_dir / "edp-1.txt", self.paths.monitor_dir / "edp-1-scheme.json"]
+        before = {path: f"original {path.name}".encode() for path in files}
+        for path, content in before.items():
+            path.write_bytes(content)
+        services, calls = self.services()
+        def fail(paths, scheme):
+            paths.scheme_file.write_bytes(b"partial new scheme")
+            raise OSError("simulated disk failure")
+        services = replace(services, save_scheme=fail)
+        result = set_wallpaper(self.image, WallpaperTarget("global"), self.paths, services)
+        self.assertFalse(result["ok"])
+        self.assertEqual({path: path.read_bytes() for path in files}, before)
+        self.assertEqual(calls["theme"], [])
+
+    def test_refresh_second_write_failure_restores_all_palettes(self):
+        self.paths.monitor_dir.mkdir(parents=True)
+        (self.paths.wallpaper_dir / "path.txt").write_text(str(self.image))
+        (self.paths.monitor_dir / "dp-1.txt").write_text(str(self.image))
+        palette = self.paths.monitor_dir / "dp-1-scheme.json"
+        self.paths.scheme_file.write_bytes(b"old global")
+        palette.write_bytes(b"old monitor")
+        write = wallpaper_module.atomic_write
+        def fail(path, contents):
+            if path == palette:
+                raise OSError("second palette failed")
+            write(path, contents)
+        services, _ = self.services()
+        with patch.object(wallpaper_module, "atomic_write", side_effect=fail):
+            result = wallpaper_module.refresh_palettes(self.paths, services)
+        self.assertFalse(result["ok"])
+        self.assertEqual(self.paths.scheme_file.read_bytes(), b"old global")
+        self.assertEqual(palette.read_bytes(), b"old monitor")
+
     def test_primary_override_applies_application_palette(self):
         services, calls = self.services()
         result = set_wallpaper(self.image, WallpaperTarget("monitor", "eDP-1"), self.paths, services)
@@ -398,6 +477,33 @@ class ExtractPaletteSourceTest(unittest.TestCase):
 
         with self.assertRaises(WallpaperError):
             extract_palette_source(self.video, self.paths, run)
+
+    def test_concurrent_extraction_never_publishes_an_incomplete_frame(self):
+        self.paths = Paths.from_env({"HOME": str(self.root)})
+        started, release = threading.Event(), threading.Event()
+        def slow(cmd, **kwargs):
+            pending = Path(cmd[-1])
+            pending.write_bytes(b"partial")
+            started.set()
+            if not release.wait(3):
+                raise RuntimeError("test synchronization timed out")
+            pending.write_bytes(b"complete first frame")
+            return 0
+        def fast(cmd, **kwargs):
+            Path(cmd[-1]).write_bytes(b"complete second frame")
+            return 0
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            first = pool.submit(extract_palette_source, self.video, self.paths, slow)
+            try:
+                self.assertTrue(started.wait(2))
+                published = [path for path in (self.paths.cache_home / "wallpapers").glob("*.jpg") if not path.name.startswith(".")]
+                self.assertEqual(published, [])
+                second = extract_palette_source(self.video, self.paths, fast)
+                self.assertEqual(second.read_bytes(), b"complete second frame")
+            finally:
+                release.set()
+            self.assertEqual(first.result().read_bytes(), b"complete first frame")
+        self.assertEqual(list((self.paths.cache_home / "wallpapers").glob(".frame-*")), [])
 
 
 class MakeThumbnailTest(unittest.TestCase):

@@ -157,6 +157,7 @@ function splitArgs(value) {
     let token = "";
     let quote = "";
     let escaped = false;
+    let started = false;
 
     for (let i = 0; i < value.length; i++) {
         const ch = value.charAt(i);
@@ -164,6 +165,7 @@ function splitArgs(value) {
             token += ch;
             escaped = false;
         } else if (ch === "\\") {
+            started = true;
             escaped = true;
         } else if (quote.length > 0) {
             if (ch === quote)
@@ -171,31 +173,43 @@ function splitArgs(value) {
             else
                 token += ch;
         } else if (ch === "\"" || ch === "'") {
+            started = true;
             quote = ch;
         } else if (/\s/.test(ch)) {
-            if (token.length > 0) {
+            if (started) {
                 args.push(token);
                 token = "";
+                started = false;
             }
         } else {
+            started = true;
             token += ch;
         }
     }
     if (escaped)
         token += "\\";
-    if (token.length > 0)
+    if (started)
         args.push(token);
     return args;
 }
 
-function resolveExec(exec) {
+function resolveExec(exec, entry) {
     if (!exec)
         return [];
     const result = [];
     const args = splitArgs(String(exec));
     for (let i = 0; i < args.length; i++) {
-        const stripped = args[i].replace(/%[fFuUiIckKdDnNvVm]/g, "");
-        if (stripped.length > 0)
+        if (args[i] === "%i" && entry && entry.icon) {
+            result.push("--icon", entry.icon);
+            continue;
+        }
+        const stripped = args[i].replace(/%(%|[fFuUiIckKdDnNvVm])/g, function(match, code) {
+            if (code === "%") return "%";
+            if (code === "c") return entry ? entry.name || "" : "";
+            if (code === "k") return entry ? entry.path || "" : "";
+            return "";
+        });
+        if (stripped.length > 0 || args[i] === "")
             result.push(stripped);
     }
     return result;

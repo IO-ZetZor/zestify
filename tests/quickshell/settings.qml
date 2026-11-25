@@ -92,7 +92,30 @@ ShellRoot {
             root.check(String(theme.accent) === "#225566", "Light mode did not apply");
             choice.chosen("dark");
             root.check(String(theme.accent) === "#80aabb", "Dark mode did not apply");
-            console.log("SETTINGS PASS: " + toggles + " toggles, live transparency, live theme mode");
+            const monitorMode = root.find(root.rowFor("monitor.secondaryMode"), item => typeof item.chosen === "function");
+            root.check(monitorMode !== null, "Missing secondary display mode");
+            for (const value of ["focus", "pill", "none"]) {
+                monitorMode.chosen(value);
+                root.check(Config.monitor.secondaryMode === value, "Display mode did not apply: " + value);
+            }
+            const focusMode = root.find(root.rowFor("focus.mode"), item => typeof item.chosen === "function");
+            root.check(focusMode !== null, "Missing focus timer mode");
+            focusMode.chosen("stopwatch");
+            root.check(Config.focus.mode === "stopwatch", "Stopwatch default did not apply");
+            const focusDuration = root.find(root.rowFor("focus.minutes"), item => typeof item.moveTo === "function");
+            root.check(focusDuration !== null && focusDuration.from === 1 && focusDuration.to === 240,
+                "Focus duration must have useful bounds");
+            const frameLimit = root.find(root.rowFor("wallpaper.proxy.maxFps"), item => typeof item.moveTo === "function");
+            root.check(frameLimit !== null && frameLimit.from === 1 && frameLimit.to === 60,
+                "Wallpaper frame limit must have useful bounds");
+            Config.setValue("wallpaper.proxy.maxFps", 15);
+            root.check(Config.wallpaper.proxy.maxFps === 15, "Wallpaper frame limit did not apply");
+            Config.setValue("wallpaper.proxy.maxFps", 0);
+            root.check(Config.wallpaper.proxy.maxFps === 1, "Wallpaper frame limit allowed zero");
+            Config.setValue("wallpaper.proxy.maxFps", 100);
+            root.check(Config.wallpaper.proxy.maxFps === 60, "Wallpaper frame limit exceeded supported maximum");
+            Config.setValue("wallpaper.proxy.maxFps", 24);
+            console.log("SETTINGS PASS: " + toggles + " toggles, live transparency/theme, display modes, focus defaults");
         } catch (error) {
             console.error("SETTINGS FAIL: " + error);
         }

@@ -77,6 +77,9 @@ ShellRoot {
         id: osdDisplay
     }
 
+    PolkitAuth {}
+    SessionLock { id: sessionLock }
+
     IpcHandler {
         target: "zestify"
 
@@ -88,8 +91,12 @@ ShellRoot {
             Qt.quit();
         }
 
-        function lockState(locked: bool): void {
-            Session.handleLockState(locked);
+        function lock(): int {
+            return sessionLock.requestLock("");
+        }
+
+        function lockStatus(): string {
+            return sessionLock.status();
         }
 
         function aboutToSleep(value: bool): void {
@@ -114,7 +121,7 @@ ShellRoot {
         }
 
         function openSurface(name: string): void {
-            ShellState.open(name, Config.monitor.primary);
+            ShellState.open(name, Config.monitor.activePrimary);
         }
 
         function setConfig(path: string, json: string): bool {

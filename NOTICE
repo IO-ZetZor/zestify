@@ -1,3 +1,22 @@
 Zestify is GPL-3.0-only.
 
-Caelestia shell was a massive inspiration for Zestify.
+shell/shaders/wallpaper-transition.frag and zesti/wallfx.py adapt the GPL-3.0
+shader and subject/contagion map generator from Diego Malagrida's pocket-dots:
+https://github.com/diegoMalagrida/pocket-dots (reference commit f148029).
+Zestify supplies native image/video textures, owns the XDG cache/runtime,
+and serializes preparation across displays.
+
+zesti/palette.py adapts Caelestia CLI's GPL-3.0-only source-colour scoring,
+smart colourfulness thresholds, hard-flavour surface adjustments, and
+Gruvbox terminal-colour harmonization from utils/material/{score,generator}.py,
+utils/colourfulness.py, and utils/wallpaper.py:
+https://github.com/caelestia-dots/cli (reference commit 7fa3fc1).
+Palette generation uses materialyoucolor directly, with no Caelestia runtime
+dependency. The all-black scoring fallback is adapted to avoid recursion.
+
+shell/assets/rem-smile.gif: Rem from Re:ZERO, sourced from Tenor:
+https://tenor.com/view/rem-smile-re-zero-anime-gif-21899424
+https://media.tenor.com/wBuCcRT5EP0AAAPo/rem-smile.mp4 (640 × 358 source)
+The bundled GIF is sharpened and upscaled to 1280 × 716 from this source.
+The animation belongs to its respective rights holders and is not covered
+by Zestify's GPL license.

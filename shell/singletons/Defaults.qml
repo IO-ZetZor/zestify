@@ -4,7 +4,15 @@ import QtQuick
 QtObject {
     readonly property var data: ({
         monitor: {
-            primary: "eDP-1"
+            primary: "eDP-1",
+            secondaryMode: "focus",
+            overrides: ({})
+        },
+        focus: {
+            task: "",
+            mode: "countdown",
+            minutes: 25,
+            dnd: false
         },
         bar: {
             height: 34,
@@ -12,12 +20,11 @@ QtObject {
             opacity: 1.0,
             scale: 1.0,
             showTray: true,
-            showTitle: true,
-            trayOn: "primary",
-            titleOn: "focused"
+            trayOn: "primary"
         },
         theme: {
             mode: "dark",
+            smartScheme: true,
             transparency: 0.88,
             font: "SF Pro",
             mono: "SF Mono",
@@ -36,7 +43,8 @@ QtObject {
                 enabled: true,
                 resolution: "monitor",
                 codec: "h264",
-                crf: 20
+                crf: 20,
+                maxFps: 24
             }
         },
         system: {

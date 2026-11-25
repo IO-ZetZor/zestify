@@ -1,7 +1,7 @@
 """CLI-level tests for zesti wallpaper commands.
 
 Drives the canonical ``zesti`` executable through a temporary XDG home so no
-real desktop or Caelestia is involved.
+real desktop or legacy shell is involved.
 """
 
 import json
@@ -103,6 +103,69 @@ class WallpaperCliTest(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertFalse(payload["ok"])
         self.assertIn("error", payload)
+
+    def set_theme_config(self, smart_scheme):
+        config = self.home / ".config/zestify/config.json"
+        settings = json.loads(config.read_text())
+        settings["theme"] = {"mode": "dark", "apply": False, "smartScheme": smart_scheme}
+        config.write_text(json.dumps(settings))
+
+    def test_smart_config_and_no_smart_override_reach_set_and_random(self):
+        gray = self.wall / "still.png"
+        Image.new("RGB", (16, 16), (128, 128, 128)).save(gray)
+        self.set_theme_config(True)
+        scheme_file = self.home / ".local/state/zestify/scheme.json"
+        for command, smart, flags in [("set", True, []), ("set", True, ["--no-smart"]), ("random", True, []), ("random", True, ["--no-smart"]), ("set", False, [])]:
+            with self.subTest(command=command, smart=smart, flags=flags):
+                self.set_theme_config(smart)
+                # Clear the active path so random can choose the only image.
+                active = self.home / ".local/state/zestify/wallpaper/path.txt"
+                if active.exists():
+                    active.write_text("")
+                args = ["wallpaper", command]
+                if command == "set":
+                    args.append(str(gray))
+                result = self.run_zesti(*args, "--all", *flags)
+                self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+                scheme = json.loads(scheme_file.read_text())
+                self.assertEqual(scheme["variant"], "neutral" if smart and not flags else "tonalspot")
+                self.assertEqual(scheme["flavour"], "hard")
+                self.assertEqual(scheme["mode"], "dark")
+
+    def test_refresh_updates_global_and_monitor_palettes_without_changing_paths(self):
+        self.set_theme_config(True)
+        gray = self.wall / "still.png"
+        Image.new("RGB", (16, 16), (128, 128, 128)).save(gray)
+        for flags in [("--all",), ("--monitor", "HDMI-A-1")]:
+            result = self.run_zesti("wallpaper", "set", str(gray), *flags)
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        state = self.home / ".local/state/zestify"
+        global_scheme = state / "scheme.json"
+        monitor_scheme = state / "wallpaper/monitors/hdmi-a-1-scheme.json"
+        self.assertEqual(json.loads(global_scheme.read_text())["variant"], "neutral")
+        self.set_theme_config(False)
+        before_paths = {path: path.read_bytes() for path in (state / "wallpaper").rglob("*.txt")}
+        result = self.run_zesti("wallpaper", "refresh")
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertEqual(json.loads(result.stdout)["updated"], 2)
+        for scheme in (global_scheme, monitor_scheme):
+            self.assertEqual(json.loads(scheme.read_text())["variant"], "tonalspot")
+        self.assertEqual(before_paths, {path: path.read_bytes() for path in before_paths})
+        old_schemes = {path: path.read_bytes() for path in (global_scheme, monitor_scheme)}
+        (state / "wallpaper/monitors/hdmi-a-1.txt").write_text(str(self.home / "missing.png"))
+        result = self.run_zesti("wallpaper", "refresh")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not refresh", result.stderr)
+        self.assertEqual(old_schemes, {path: path.read_bytes() for path in old_schemes})
+
+    def test_print_smart_config_and_explicit_variant(self):
+        self.set_theme_config(True)
+        gray = self.wall / "still.png"
+        Image.new("RGB", (16, 16), (128, 128, 128)).save(gray)
+        for flags, variant in [((), "neutral"), (("--variant", "monochrome"), "monochrome")]:
+            result = self.run_zesti("wallpaper", "print", str(gray), "--mode", "dark", *flags)
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertEqual(json.loads(result.stdout)["metadata"]["variant"], variant)
 
     def test_saved_palette_has_shell_colours_and_both_modes(self):
         config = self.home / ".config/zestify/config.json"

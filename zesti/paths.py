@@ -26,10 +26,11 @@ class Paths:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "Paths":
-        config_home = Path(env.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")))
-        data_home = Path(env.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")))
-        state_home = Path(env.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")))
-        cache_home = Path(env.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")))
+        home = Path(env.get("HOME") or Path.home())
+        config_home = Path(env.get("XDG_CONFIG_HOME") or home / ".config")
+        data_home = Path(env.get("XDG_DATA_HOME") or home / ".local/share")
+        state_home = Path(env.get("XDG_STATE_HOME") or home / ".local/state")
+        cache_home = Path(env.get("XDG_CACHE_HOME") or home / ".cache")
 
         zestify_config = config_home / "zestify"
         zestify_state = state_home / "zestify"

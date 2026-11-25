@@ -40,6 +40,13 @@ TestCase {
         compare(Desktop.resolveExec("foo --file=%f"), ["foo", "--file="]);
     }
 
+    function test_resolve_exec_expands_metadata_literal_percent_and_empty_arguments() {
+        const entry = {name: "My Editor", path: "/tmp/My Editor.desktop", icon: "editor"};
+        compare(Desktop.resolveExec('editor --name %c %i %k "" %% %U', entry),
+            ["editor", "--name", "My Editor", "--icon", "editor", "/tmp/My Editor.desktop", "", "%"]);
+        compare(Desktop.resolveExec('editor %i', {icon: ""}), ["editor"]);
+    }
+
     function test_missing_entry_returns_empty_defaults() {
         const entry = Desktop.parse("");
         compare(entry.name, "");

@@ -2,7 +2,7 @@
 """Narrow compatibility launcher for wallpaper commands.
 
 Delegates to the :mod:`zesti` package dispatcher so the legacy
-``wallpaper-backend.py`` entry keeps working without any Caelestia dependency.
+``wallpaper-backend.py`` entry keeps working without any legacy shell dependency.
 All wallpaper state is owned by Zestify (:mod:`zesti.paths`).
 """
 

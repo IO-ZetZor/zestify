@@ -7,13 +7,13 @@ License: GPL-3.0-only (see License and attribution)
 
 ## 1. Intent
 
-Replace the Caelestia shell with a single, hand-owned Quickshell shell that does three things well:
+Replace the legacy shell with a single, hand-owned Quickshell shell that does three things well:
 
 1. A minimal, always-visible pill on every monitor.
 2. A wallpaper manager with per-monitor stills and live videos.
 3. A resource/status bar with the everyday controls and surfaces needed to avoid a second bar.
 
-The pill's shape, motion, and one-shape-morphs-into-everything interaction come from Ricelin. Its colors, typography, and material treatment do **not**: every color is derived from the current wallpaper. Caelestia is no longer the shell, but its palette engine and wallpaper state remain the backend in v1.
+The pill's shape, motion, and one-shape-morphs-into-everything interaction come from the reference UI. Its colors, typography, and material treatment do **not**: every color is derived from the current wallpaper. The legacy shell is no longer used, but its palette engine and wallpaper state remain the backend in v1.
 
 The result should feel like one deliberate object, not a collection of widgets. It should be quiet at rest, expand fluidly under the pointer, and stay out of the way.
 
@@ -26,8 +26,8 @@ The result should feel like one deliberate object, not a collection of widgets. 
 - Per-monitor wallpapers and per-monitor shell palettes.
 - System applications (GTK, terminal, Discord, Spotify, etc.) always follow the **primary** monitor's palette.
 - Native still/video wallpaper rendering with sensible pause rules and monitor-resolution video proxies; no awww/mpvpaper dependency.
-- Preserve Caelestia's idle/session behavior (lock, DPMS, suspend, lock-before-sleep, audio inhibit, battery warnings) inside Zestify; no second shell and no hypridle dependency.
-- Install and uninstall cleanly alongside Caelestia, with rollback.
+- Preserve the legacy shell's idle/session behavior (lock, DPMS, suspend, lock-before-sleep, audio inhibit, battery warnings) inside Zestify; no second shell and no hypridle dependency.
+- Install and uninstall cleanly alongside the legacy shell, with rollback.
 - Stay within a measured performance budget.
 - Keep the user's hand-written Hyprland Lua config intact apart from small, marked, reversible edits.
 
@@ -43,21 +43,21 @@ The result should feel like one deliberate object, not a collection of widgets. 
 - Per-app volume, microphone denoise, equalizer, AutoEQ.
 - Night light, keep-awake, DND inbox (a DND toggle inside notifications is allowed).
 - Random-wallpaper configuration UI beyond a "random" action.
-- Manual light/dark theme editor or theme export beyond Caelestia's templates.
+- Manual light/dark theme editor or theme export beyond the legacy shell's templates.
 - Custom lock-screen wallpaper handling.
-- Hyprland window-border recoloring. This can be added later by including Caelestia's generated Lua file; it is not part of v1.
+- Hyprland window-border recoloring. This can be added later by including the legacy shell's generated Lua file; it is not part of v1.
 - Ricemod. The abandoned `~/zesty/ricemod` project is not used, imported, or modified.
 
 ## 4. Anti-goals
 
 - A second bar, a dock, or a separate widget layer that makes the shell feel assembled.
 - A second shell process kept alive only for session management. Port the behavior into Zestify instead.
-- Warm Ricelin vermilion/brown colors, regardless of wallpaper.
+- Warm vermilion/brown colors, regardless of wallpaper.
 - A static theme that ignores the wallpaper.
 - Constant animations, shaders, or polling that keep the CPU awake.
 - Duplicating the same tray/status modules on both monitors just because there are two screens.
 - Editing the user's Hyprland config without a backup and a clean reverse path.
-- Making Caelestia a runtime requirement for the **shell UI**. The CLI backend is a v1 dependency; the shell itself must be our code and our process.
+- Making the legacy shell a runtime requirement for the **shell UI**. The CLI backend is a v1 dependency; the shell itself must be our code and our process.
 
 ## 5. Constraints and environment
 
@@ -65,23 +65,23 @@ The result should feel like one deliberate object, not a collection of widgets. 
 - Entry point `~/.config/hypr/hyprland.lua`; includes `conf/const.lua`, `monitor.lua`, `env.lua`, `config.lua`, `anim.lua`, `input.lua`, `rules.lua`, `binds.lua`, `autostart.lua`.
 - Primary monitor `eDP-1`: 1920×1200, position 0,0, scale 1.
 - Secondary monitor `HDMI-A-1`: 1366×768 with `transform=1`; Quickshell reports it as **768×1366** at x=-768, y=0. It is portrait and must be treated as such for scale and width calculations.
-- Caelestia shell 2.5.0 and CLI 1.1.3 are installed. Caelestia shell is currently running; the installer stops it and starts Zestify.
+- The legacy shell 2.5.0 and CLI 1.1.3 are installed. The legacy shell is currently running; the installer stops it and starts Zestify.
 - Quickshell 0.3.1, `qs` at `/usr/bin/qs`.
-- `hyprlock` 0.9.6 is installed but has no config. Current `SUPER + Escape` calls Caelestia's IPC lock.
+- `hyprlock` 0.9.6 is installed but has no config. Current `SUPER + Escape` calls the legacy shell's IPC lock.
 - Wallpapers live in `~/Pictures/Wallpapers` (39 files: 18 images, 21 videos). The folder is the default, not a hard requirement.
 - GPU is Intel UHD (Alder Lake-P). No discrete GPU. `lm_sensors` is installed.
 - PipeWire/WirePlumber, NetworkManager, BlueZ, playerctl, ffmpeg, ImageMagick, jq, Python 3.14 are installed.
-- Fonts: SF Pro / SF Mono and CaskaydiaCove Nerd Font are available and match the current Caelestia look. JetBrains Mono is available if a mono look is preferred later.
-- Caelestia is GPL-3.0; Ricelin is MIT. Copying from both makes this project GPL-3.0.
+- Fonts: SF Pro / SF Mono and CaskaydiaCove Nerd Font are available and match the current reference look. JetBrains Mono is available if a mono look is preferred later.
+- The legacy shell is GPL-3.0; the reference UI is MIT. Copying from both makes this project GPL-3.0.
 
 ## 6. Decisions made by the user
 
-- Build our own minimal shell instead of continuing to use Caelestia.
+- Build our own minimal shell instead of continuing to use the legacy shell.
 - One shell, not a bar plus a separate wallpaper daemon.
-- Take Ricelin's shape, functionality, and fluidity; do not take its colors/theme.
+- Take the reference UI's shape, functionality, and fluidity; do not take its colors/theme.
 - Derive colors from the wallpaper; no static palette.
-- Use Caelestia's theming/wallpaper system as the backend where it helps.
-- Rip/adapt code freely from Caelestia and Ricelin, accepting GPL-3.0.
+- Use the legacy shell's theming/wallpaper system as the backend where it helps.
+- Rip/adapt code freely from the legacy shell and the reference UI, accepting GPL-3.0.
 - Include, alongside the original v1 scope:
   - per-monitor wallpapers and per-monitor palettes;
   - install/uninstall script;
@@ -91,7 +91,7 @@ The result should feel like one deliberate object, not a collection of widgets. 
   - system tray;
   - power/session menu (lock, sleep, logout, restart, shutdown).
 - System applications use the **primary monitor's** palette; they do not follow focus.
-- Keep Caelestia's idle/session behavior by porting its logic into Zestify (same thresholds, lock before sleep, audio inhibit, battery warnings). Caelestia's shell process is not kept running for this.
+- Keep the legacy shell's idle/session behavior by porting its logic into Zestify (same thresholds, lock before sleep, audio inhibit, battery warnings). The legacy shell process is not kept running for this.
 - Use a monitor-resolution proxy cache for video wallpapers so 4K sources are decoded at the monitor's resolution; originals remain for palette extraction and thumbnails.
 
 ## 7. Decisions made by the builder (defaults, vetoable)
@@ -101,19 +101,19 @@ These are my calls. They are recorded here so they can be rejected before implem
 - Working name: **Zestify**. Repo root `~/zestify`; config name `zestify`; command `zestify`.
 - User config: `~/.config/zestify/config.json`.
 - Runtime state: `~/.local/state/zestify/`.
-- Cache: `~/.cache/zestify/`; prefer Caelestia's wallpaper cache when a thumbnail already exists.
+- Cache: `~/.cache/zestify/`; prefer the legacy shell's wallpaper cache when a thumbnail already exists.
 - Launch: `qs -c zestify`, symlinked from the repo's `shell/` directory into `~/.config/quickshell/zestify`.
-- Backend: call the installed `caelestia` CLI for palette generation and system-app templating in v1. The shell does not import Caelestia's QML modules. Vendoring the Python/templates is a later option.
+- Backend: call the installed the legacy CLI for palette generation and system-app templating in v1. The shell does not import the legacy shell's QML modules. Vendoring the Python/templates is a later option.
 - Wallpaper rendering: native QtMultimedia/Image inside Quickshell. Do not use awww or mpvpaper. Video playback uses a lazily generated monitor-sized H.264 proxy; if generation fails, fall back to the original file.
 - Lock: `hyprlock` via a `zestify lock` wrapper; generate a minimal config from the current palette and wallpaper at lock time. No custom lock UI in v1. The wrapper returns after spawning hyprlock and resumes video when hyprlock exits; `--wait` is available for scripts.
-- Session/idle: port Caelestia's `IdleMonitors`/`BatteryMonitor` behavior rather than importing `Caelestia.Services`; use Quickshell `IdleMonitor`, UPower, a small logind DBus watcher, and systemd. Same thresholds as the current Caelestia config.
-- Default theme mode: dark, even if a wallpaper would make Caelestia choose light. `theme.mode` can be set to `smart` later.
+- Session/idle: port the legacy shell's `IdleMonitors`/`BatteryMonitor` behavior rather than importing the legacy shell's services; use Quickshell `IdleMonitor`, UPower, a small logind DBus watcher, and systemd. Same thresholds as the current reference config.
+- Default theme mode: dark, even if a wallpaper would make the legacy shell choose light. `theme.mode` can be set to `smart` later.
 - Fonts: SF Pro for body/title/clock; SF Mono for numbers where it helps; CaskaydiaCove Nerd Font for icons.
 - Tray: primary monitor only. Active-window title: focused monitor only. One surface open across all monitors at a time. Power menu opens on the monitor where it was invoked.
 - Module order is fixed in v1. JSON can toggle visibility of tray/title, but not reorder every module.
 - Hover opens the expanded pill; clicking a module opens a persistent surface; `Esc` or clicking outside closes it. Clicking the same module again closes it.
 - Installer uses marked blocks and backups; it refuses to guess if the user's config has changed beyond the marked regions.
-- Caelestia CLI remains installed. Removing the Caelestia **shell** package is not part of the installer.
+- The legacy CLI remains installed. Removing the legacy shell package is not part of the installer.
 
 ## 8. Architecture
 
@@ -128,9 +128,9 @@ One Quickshell process, config `zestify`:
   - overlay windows as needed for tray menus, notification popups, and OSD.
 - The pill window uses a region mask so only the pill/surface area accepts input. The rest of the top layer is click-through.
 - Exclusive zone: only the pill height at rest; expanded surfaces must not reserve layout space.
-- Fullscreen windows on a monitor retract the pill on that monitor (Ricelin behavior). Other monitors keep their pill.
+- Fullscreen windows on a monitor retract the pill on that monitor (the reference UI behavior). Other monitors keep their pill.
 - One expanded surface globally. Opening a surface on one monitor closes the other.
-- Caelestia shell is stopped by the installer. Caelestia CLI remains available for palette/wallpaper work.
+- The legacy shell is stopped by the installer. The legacy CLI remains available for palette/wallpaper work.
 
 IPC target `zestify`, with at least:
 
@@ -157,7 +157,7 @@ The `zestify` CLI wraps `qs -c zestify` and IPC. It also provides `start`, `stop
   scripts/
     install.sh
     uninstall.sh
-    wallpaper-backend.py      # optional thin wrapper around caelestia CLI for primary/secondary restore
+    wallpaper-backend.py      # optional thin wrapper around the legacy CLI for primary/secondary restore
     wallpaper-proxy.py        # monitor-sized H.264 proxy cache
     perf-sample.sh
   config/default.json
@@ -241,25 +241,25 @@ Initial schema:
 }
 ```
 
-Runtime state in `~/.local/state/zestify/`: last opened surface, lock flag, notification DND override, notification history if Quickshell does not persist it, and installer backups. Wallpaper and palette state remain in Caelestia's state directory and are treated as the source of truth.
+Runtime state in `~/.local/state/zestify/`: last opened surface, lock flag, notification DND override, notification history if Quickshell does not persist it, and installer backups. Wallpaper and palette state remain in the legacy shell's state directory and are treated as the source of truth.
 
 ### 8.4 Per-monitor palettes
 
-Caelestia already generates:
+The legacy shell already generates:
 
-- global `~/.local/state/caelestia/scheme.json` (primary wallpaper);
-- per-monitor `~/.local/state/caelestia/wallpaper/monitors/<connector>-scheme.json`;
+- global `~/.local/state/<previous-shell>/scheme.json` (primary wallpaper);
+- per-monitor `~/.local/state/<previous-shell>/wallpaper/monitors/<connector>-scheme.json`;
 - per-monitor wallpaper path files next to them.
 
-Zestify watches those files and builds a `Colours` singleton with the same idea as Caelestia's `Colours.qml`:
+Zestify watches those files and builds a `Colours` singleton with the same idea as the legacy shell's `Colours.qml`:
 
 - `Colours.p(screenName)` returns the screen's M3 palette, falling back to the global palette.
 - `Colours.isLight(screenName)` returns the screen's mode.
-- A `Theme` object per screen maps M3 names to the token names Ricelin components already use.
+- A `Theme` object per screen maps M3 names to the token names the reference UI components already use.
 
 Mapping (kept deliberately small):
 
-| Ricelin token | M3 source |
+| Reference token | M3 source |
 |---|---|
 | `cream` / text | `onSurface` |
 | `bright` | `onSurface` |
@@ -275,38 +275,38 @@ Mapping (kept deliberately small):
 | `onGlow` | `onPrimary` |
 | `vermLit` / `vermLit` names | `primary` (rename in code; no warm semantic) |
 
-The shell uses `surfaceContainerHigh` at `theme.transparency` alpha for glass, `outlineVariant` at ~25% for the hairline, and `primary` for active states. It must not keep Ricelin's vermilion/brown tokens.
+The shell uses `surfaceContainerHigh` at `theme.transparency` alpha for glass, `outlineVariant` at ~25% for the hairline, and `primary` for active states. It must not keep the reference UI's vermilion/brown tokens.
 
 Each pill and surface receives its monitor's `Theme` object; no global mutable "current screen" is used for rendering both monitors at once.
 
 ### 8.5 Wallpaper and palette pipeline
 
 **Reading state.** `Wallpapers` reads:
-- global path `~/.local/state/caelestia/wallpaper/path.txt`;
-- per-monitor paths `~/.local/state/caelestia/wallpaper/monitors/<connector>.txt`;
+- global path `~/.local/state/<previous-shell>/wallpaper/path.txt`;
+- per-monitor paths `~/.local/state/<previous-shell>/wallpaper/monitors/<connector>.txt`;
 - `wallpaper/current` symlink only as a convenience.
 
 Effective wallpaper for a monitor = per-monitor path if present, else global path.
 
 **Applying a wallpaper.**
 
-- Secondary monitor: `caelestia wallpaper -f <file> -m HDMI-A-1`. This writes the per-monitor path and `HDMI-A-1-scheme.json`; it does not touch global app templates. The shell's secondary palette updates from the file watcher.
-- Primary monitor: `caelestia wallpaper -f <file>`. This writes the global path, regenerates `scheme.json`, and applies system-app templates. It also clears per-monitor overrides, so the wrapper must save and re-apply the current secondary wallpaper(s) afterward with `-m`.
+- Secondary monitor: `legacy-cli wallpaper -f <file> -m HDMI-A-1`. This writes the per-monitor path and `HDMI-A-1-scheme.json`; it does not touch global app templates. The shell's secondary palette updates from the file watcher.
+- Primary monitor: `legacy-cli wallpaper -f <file>`. This writes the global path, regenerates `scheme.json`, and applies system-app templates. It also clears per-monitor overrides, so the wrapper must save and re-apply the current secondary wallpaper(s) afterward with `-m`.
 - Apply-to-all: global call; no overrides to restore.
-- Random: choose from the configured folder (or Caelestia's wallpaper list), apply with the same primary/secondary rules.
+- Random: choose from the configured folder (or the legacy shell's wallpaper list), apply with the same primary/secondary rules.
 - The wrapper is `scripts/wallpaper-backend.py` (or a POSIX wrapper): it stores secondary paths in Zestify state, invokes the CLI, restores secondary overrides after a primary/global change, and prints a JSON result for the QML side.
 
 **System apps.** Always use the global `scheme.json`, which is generated from the primary wallpaper. Moving focus between monitors never re-templates apps. This is a user decision.
 
-**Dark mode.** Default `theme.mode: "dark"`. When applying a wallpaper, force Caelestia's scheme mode to dark (or use `-N` with a dark scheme) unless the user sets `smart`. The exact CLI call is an implementation detail, but the default visual result must be dark surfaces with wallpaper-derived accents.
+**Dark mode.** Default `theme.mode: "dark"`. When applying a wallpaper, force the legacy shell's scheme mode to dark (or use `-N` with a dark scheme) unless the user sets `smart`. The exact CLI call is an implementation detail, but the default visual result must be dark surfaces with wallpaper-derived accents.
 
-**Thumbnails.** For videos, grab a frame at ~2 seconds with ffmpeg and cache by content hash. For images, use a downscaled copy. Reuse Caelestia's `~/.cache/caelestia/wallpapers/<hash>/thumbnail.jpg` when present. The wallpaper studio shows aspect-correct thumbnails with a play badge for videos.
+**Thumbnails.** For videos, grab a frame at ~2 seconds with ffmpeg and cache by content hash. For images, use a downscaled copy. Reuse the legacy shell's `~/.cache/<previous-shell>/wallpapers/<hash>/thumbnail.jpg` when present. The wallpaper studio shows aspect-correct thumbnails with a play badge for videos.
 
 **Video proxies.** When a video is applied, Zestify computes the target size from the monitor's current pixel size and generates a monitor-sized H.264 proxy at `~/.cache/zestify/wallpapers/<hash>/<WxH>.mp4` with ffmpeg. The scale/crop matches `PreserveAspectCrop`; the cache key includes source path, size, mtime, target size, codec, and CRF. Generation is lazy and background: show the extracted still while the proxy is built, then cross-fade to the proxy. The original file stays authoritative for palette extraction, thumbnails, and the wallpaper studio. If generation fails or is disabled, play the original and record the fallback. A proxy is never used for a different monitor geometry. `zestify cache prune` removes proxies not referenced by current or recent wallpapers.
 
 ### 8.6 Background renderer
 
-Adapt Caelestia's `Wallpaper.qml` and `VideoWallpaper.qml`:
+Adapt the legacy shell's `Wallpaper.qml` and `VideoWallpaper.qml`:
 
 - `Image` for stills, `MediaPlayer` + `VideoOutput` for videos.
 - `MediaPlayer.source` points to the monitor-sized proxy when available; otherwise the original. The decoder therefore receives frames at monitor resolution, not 4K. The proxy is generated while the still frame is shown; the original is never decoded in steady state when proxying succeeds.
@@ -372,7 +372,7 @@ Hover collapses ~350ms after the pointer leaves unless a surface is pinned open.
 - **Power:** lock, sleep, logout, restart, shutdown; hold-to-confirm for logout/restart/shutdown; keyboard support.
 
 **Notifications and OSD:**
-- Quickshell `NotificationServer` owns `org.freedesktop.Notifications` when Caelestia is stopped.
+- Quickshell `NotificationServer` owns `org.freedesktop.Notifications` when the legacy shell is stopped.
 - Popups appear at the top-right of the focused monitor, stacked, auto-dismiss after `notifications.timeout`, click to dismiss, hover to pause timeout.
 - DND suppresses popups but keeps history.
 - Volume OSD observes PipeWire default sink changes and appears bottom-center for ~1.5s. Brightness OSD is driven by `zestify brightness up/down`, which calls `brightnessctl` and the IPC OSD.
@@ -388,7 +388,7 @@ Hover collapses ~350ms after the pointer leaves unless a surface is pinned open.
 - **Battery:** Quickshell.Services.UPower.
 - **Tray:** Quickshell.Services.SystemTray + `QsMenuOpener`.
 - **Notifications:** Quickshell.Services.Notifications.
-- **Launcher:** custom `.desktop` parser in QML/JS. Read `$XDG_DATA_DIRS/applications` and `~/.local/share/applications`; parse Name, Exec, Icon, Terminal, Categories, NoDisplay, Hidden, OnlyShowIn; resolve icons through Quickshell's icon lookup. Do not depend on Caelestia's `Caelestia.Models` module.
+- **Launcher:** custom `.desktop` parser in QML/JS. Read `$XDG_DATA_DIRS/applications` and `~/.local/share/applications`; parse Name, Exec, Icon, Terminal, Categories, NoDisplay, Hidden, OnlyShowIn; resolve icons through Quickshell's icon lookup. Do not depend on the legacy shell's `the legacy shell's models` module.
 - **Hyprland:** Quickshell.Hyprland for workspaces, toplevels, active window, monitors, fullscreen/DPMS state.
 - **Lock:** external hyprlock; state via IPC.
 
@@ -401,13 +401,13 @@ Hover collapses ~350ms after the pointer leaves unless a surface is pinned open.
   4. when hyprlock exits, the watcher sends `lockState(false)` (resume videos where allowed).
 - The wrapper returns immediately by default so it is safe from idle and sleep paths; `--wait` waits for hyprlock to exit for scripts that need it.
 - Generated hyprlock config: wallpaper background, dark overlay, clock, username, password field, error color, accent from `primary`, font SF Pro/SF Mono. No custom shaders.
-- `SUPER + Escape` changes from Caelestia's IPC lock to `zestify lock`.
+- `SUPER + Escape` changes from the legacy shell's IPC lock to `zestify lock`.
 - Power menu's Lock action calls the same wrapper.
 - If hyprlock fails, `zestify lock` logs and leaves the session unlocked rather than trapping the user.
 
 ### 8.10 Idle and session
 
-Zestify takes over the behavior Caelestia currently provides; Caelestia's shell is not kept running for it. The thresholds mirror the current `~/.config/caelestia/shell.json`:
+Zestify takes over the behavior the legacy shell currently provides; the legacy shell process is not kept running for it. The thresholds mirror the current `~/.config/<previous-shell>/shell.json`:
 
 - idle 180s -> `zestify lock`;
 - idle 300s -> DPMS off (`hyprctl dispatch dpms off`); return action DPMS on;
@@ -417,24 +417,24 @@ Zestify takes over the behavior Caelestia currently provides; Caelestia's shell 
 - UPower battery warnings at 20/10/5%; critical at 3% -> hibernate after a 5s toast;
 - battery warnings only while on battery; charger plug/unplug toasts.
 
-Implementation: Quickshell `IdleMonitor` + UPower + a small logind DBus watcher. Do not import `Caelestia.Services` (compiled and coupled). `zestify lock` is safe to call from the idle service and from logind's sleep path because it returns after spawning hyprlock. `zestify sleep` locks first, then runs `systemctl suspend-then-hibernate`; the power menu's Sleep action uses it.
+Implementation: Quickshell `IdleMonitor` + UPower + a small logind DBus watcher. Do not import the legacy shell's services (compiled and coupled). `zestify lock` is safe to call from the idle service and from logind's sleep path because it returns after spawning hyprlock. `zestify sleep` locks first, then runs `systemctl suspend-then-hibernate`; the power menu's Sleep action uses it.
 
 ### 8.11 Installer and uninstaller
 
 `scripts/install.sh` is idempotent, supports `--dry-run`, `--no-start`, and `--purge` only on uninstall. It must:
 
-1. Check required commands: `qs`, `caelestia`, `hyprlock`, `brightnessctl`, `wpctl`, `jq`, `ffmpeg`, `magick`, `python`.
+1. Check required commands: `qs`, the legacy CLI, `hyprlock`, `brightnessctl`, `wpctl`, `jq`, `ffmpeg`, `magick`, `python`.
 2. Back up every file it will edit to `~/.local/state/zestify/backups/<timestamp>/`.
 3. Symlink `~/zestify/shell` to `~/.config/quickshell/zestify` (replace an existing symlink only after backup; refuse to overwrite a real directory without `--force`).
 4. Install `bin/zestify` as a symlink in `~/.local/bin/zestify` (or print PATH instructions if `~/.local/bin` is not on PATH).
 5. Write `~/.config/zestify/config.json` from defaults if missing; never overwrite an existing config.
 6. Write `~/.config/hypr/conf/zestify.lua` with autostart/keybind additions, and patch the existing files with clearly marked blocks:
-   - in `conf/autostart.lua`, replace `hl.exec_cmd("caelestia shell")` with `hl.exec_cmd("zestify start")` inside `-- >>> zestify` / `-- <<< zestify` markers;
+   - in `conf/autostart.lua`, replace the exact legacy autostart line with `hl.exec_cmd("zestify start")` inside `-- >>> zestify` / `-- <<< zestify` markers;
    - in `conf/binds.lua`, replace `SUPER + Escape` lock with `zestify lock`;
    - replace the two brightness binds with `zestify brightness up/down`;
    - add `SUPER + D` launcher and `SUPER + W` wallpaper if those keys are free.
-7. Stop Caelestia shell (`caelestia shell -k`), start Zestify (`zestify start`), wait for `zestify ping`, and verify the process is alive.
-8. On failure: restore the backups, restart Caelestia shell, and print the log path.
+7. Stop the legacy shell (`legacy-cli shell -k`), start Zestify (`zestify start`), wait for `zestify ping`, and verify the process is alive.
+8. On failure: restore the backups, restart the legacy shell, and print the log path.
 
 `scripts/uninstall.sh`:
 
@@ -443,8 +443,8 @@ Implementation: Quickshell `IdleMonitor` + UPower + a small logind DBus watcher.
 - Reverses the marked blocks in `autostart.lua` and `binds.lua` **only if the current content still matches what the installer wrote**; otherwise leaves them and prints manual instructions.
 - Removes `~/.config/hypr/conf/zestify.lua`.
 - Keeps `~/.config/zestify/config.json` unless `--purge`.
-- Restarts Caelestia shell if it was running before install.
-- Never removes Caelestia packages, wallpapers, or state.
+- Restarts the legacy shell if it was running before install.
+- Never removes the legacy shell packages, wallpapers, or state.
 
 ## 9. Multi-monitor behavior
 
@@ -493,13 +493,13 @@ than silently relaxed here.
 - Config merge tests: missing keys, invalid JSON, unknown keys.
 
 **Manual/session:**
-- Shell starts on both monitors with no duplicate Caelestia bar.
+- Shell starts on both monitors with no duplicate legacy bar.
 - Pill at rest and hover match the intended shape; no clipped content on the portrait panel.
 - Per-monitor wallpapers: set different stills/videos; verify each monitor's palette and the primary-only app theming.
 - Primary wallpaper change recolors GTK/terminal templates; secondary change does not.
 - Video proxy: `ffprobe` reports the proxy dimensions equal to the monitor target; the original is untouched and remains the palette/thumbnail source; disabling the proxy or making ffmpeg fail falls back to the original.
 - Video pause: fullscreen, lock, DPMS off, battery threshold, power-saver.
-- Idle/session: 180s lock, 300s DPMS off, 600s suspend-then-hibernate; audio inhibit; lock before sleep; battery warnings at 20/10/5 and critical hibernate; no Caelestia shell process.
+- Idle/session: 180s lock, 300s DPMS off, 600s suspend-then-hibernate; audio inhibit; lock before sleep; battery warnings at 20/10/5 and critical hibernate; no legacy shell process.
 - Lock: `SUPER + Escape`, power menu, and idle all launch hyprlock; videos pause/resume.
 - Active-window title updates on focus/title changes and hides on the unfocused monitor.
 - Tray icons appear on primary; right-click menu works; no duplicate tray on secondary.
@@ -508,14 +508,14 @@ than silently relaxed here.
 - OSD: volume keys and `zestify brightness up/down`.
 - Launcher: search, keyboard navigation, launch, Esc.
 - Network/Bluetooth/battery surfaces reflect real state and can change it.
-- Installer rollback: break the start step deliberately; verify Caelestia is restored.
-- Uninstall: round-trip leaves the Hyprland config and Caelestia autostart as before.
+- Installer rollback: break the start step deliberately; verify the legacy shell is restored.
+- Uninstall: round-trip leaves the Hyprland config and the legacy shell autostart as before.
 - Performance sample within budget.
 - GPL notices and source links present.
 
 ## 12. Milestones
 
-1. **Skeleton:** repo, config, IPC, CLI, per-monitor pill with idle modules, palette watcher, native background renderer, proxy cache pipeline, dev symlink. Test with Caelestia stopped manually.
+1. **Skeleton:** repo, config, IPC, CLI, per-monitor pill with idle modules, palette watcher, native background renderer, proxy cache pipeline, dev symlink. Test with the legacy shell stopped manually.
 2. **Core surfaces:** wallpaper studio, system monitor, media, audio, calendar, hover expansion.
 3. **System:** notifications, tray, network, Bluetooth, battery, power, lock, idle/session takeover, OSD, launcher.
 4. **Installer/uninstaller:** marked edits, backups, rollback, autostart switch, uninstall round-trip.
@@ -526,22 +526,22 @@ than silently relaxed here.
 - Project license: **GPL-3.0-only**.
 - `LICENSE`: GPL-3.0 text.
 - `NOTICE`:
-  - Portions adapted from Caelestia (GPL-3.0), https://github.com/caelestia-dots/shell, copyright their contributors.
-  - Portions adapted from Ricelin (MIT), https://github.com/Gakuseei/Ricelin, copyright Gakuseei; include the MIT license text.
+  - Portions adapted from the legacy shell (GPL-3.0), , copyright their contributors.
+  - Portions adapted from the reference UI (MIT), , copyright the reference author; include the MIT license text.
   - Zestify changes copyright 2026 zetzor.
 - Preserve copyright headers in copied files where they exist.
 - Because the shell is distributed as source (QML), the source itself satisfies GPL. If binaries are ever distributed, provide the corresponding source.
-- The Caelestia CLI remains a separate installed program; the shell calls it as a backend. This does not remove the GPL obligations for copied QML/Python code.
+- The legacy CLI remains a separate installed program; the shell calls it as a backend. This does not remove the GPL obligations for copied QML/Python code.
 
 ## 14. What is deliberately left to the builder
 
 - Exact pixel values, spacing, corner radii, shadow strength, icon choices, and typography fine-tuning within the stated visual direction.
 - Exact QML component decomposition and file names inside `shell/`.
-- The precise caelestia CLI invocation used to force dark mode (as long as the default result is dark and wallpaper-derived).
+- The precise legacy CLI invocation used to force dark mode (as long as the default result is dark and wallpaper-derived).
 - The `.desktop` parser details and icon fallback behavior.
 - The exact hyprlock config template, as long as it is palette-driven and minimal.
 - The exact logind DBus watcher implementation and sleep/lock ordering details.
 - Proxy CRF/codec tuning, cache pruning policy, and whether to precompute on idle, as long as steady-state decode stays monitor-sized.
 - The installer's shell implementation (POSIX sh vs bash), provided it is idempotent and has the stated backup/rollback behavior.
-- Whether to vendor Caelestia's Python modules in a later version; v1 uses the installed CLI.
+- Whether to vendor the legacy shell's Python modules in a later version; v1 uses the installed CLI.
 - Additional polish that does not expand the v1 scope.

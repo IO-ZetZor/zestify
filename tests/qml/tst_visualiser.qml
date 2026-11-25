@@ -5,6 +5,17 @@ import "../../shell/lib/visualiser.js" as Visualiser
 TestCase {
     name: "Visualiser"
 
+    function test_party_packet_validates_fixed_gain_and_format() {
+        const packet = {version: 1, fixedGain: true, levels: Array(32).fill(0.001),
+                        time: 1234, emittedAt: 5678, sequence: 1};
+        verify(Visualiser.parseFrame(JSON.stringify(packet), 32, true));
+        for (const changes of [{fixedGain: false}, {sequence: -1}, {time: null},
+                               {levels: [0]}, {levels: Array(32).fill(2)}])
+            compare(Visualiser.parseFrame(JSON.stringify(Object.assign({}, packet, changes)), 32, true), null);
+        compare(Visualiser.parseFrame("garbage", 32, true), null);
+        verify(Visualiser.parseFrame(Array(32).fill(128).join(";"), 32, false));
+    }
+
     function test_advance_moves_toward_target() {
         const result = Visualiser.advance([0, 0], [1, 0.5], 16, 180);
 

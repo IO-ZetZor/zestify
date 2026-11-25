@@ -193,11 +193,12 @@ Rectangle {
         color: root.theme.withAlpha(root.accent, 0.55)
     }
     NumberAnimation on progress {
+        id: expiryAnimation
         from: 1
         to: 0
         duration: Math.max(1, root.entry.expires || 1)
         running: root.popup && root.entry.expires > 0
-        paused: root.hovered
+        paused: expiryAnimation.running && (root.hovered || !root.visible)
         onFinished: root.expired()
     }
 }

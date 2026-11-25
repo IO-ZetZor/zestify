@@ -16,6 +16,24 @@ SurfaceFrame {
     property real uptimeSeconds: 0
     property string sortBy: "cpu"
     property bool sampling: true
+    property var _gpuStats: null
+
+    function syncGpuSampling() {
+        const next = root.sampling && root.visible && root.stats
+            && typeof root.stats.setGpuConsumer === "function" ? root.stats : null;
+        if (root._gpuStats === next)
+            return;
+        if (root._gpuStats)
+            root._gpuStats.setGpuConsumer(root, false);
+        root._gpuStats = next;
+        if (next)
+            next.setGpuConsumer(root, true);
+    }
+
+    onStatsChanged: syncGpuSampling()
+    onSamplingChanged: syncGpuSampling()
+    onVisibleChanged: syncGpuSampling()
+    Component.onDestruction: if (root._gpuStats) root._gpuStats.setGpuConsumer(root, false)
 
     readonly property real memoryPercent: stats ? Usage.percent(stats.ramUsed, stats.ramTotal) : 0
     readonly property var cpuHistory: stats ? stats.historyCpu : []
@@ -655,5 +673,5 @@ SurfaceFrame {
         onTriggered: { root.refreshProcesses(); uptimeFile.reload(); }
     }
 
-    Component.onCompleted: refreshProcesses()
+    Component.onCompleted: { syncGpuSampling(); refreshProcesses(); }
 }

@@ -1,0 +1,7 @@
+#%PAM-1.0
+# Only the root daemon opens this dedicated, unprivileged greeter session.
+auth       required   pam_permit.so
+account    required   pam_permit.so
+session    required   pam_unix.so
+session    required   pam_limits.so
+session    required   pam_systemd.so

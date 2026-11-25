@@ -15,10 +15,12 @@ function getValue(data, path, fallback) {
 
 function setValue(data, path, value) {
     const parts = String(path).split(".");
+    if (parts.some(part => !part.length || ["__proto__", "prototype", "constructor"].indexOf(part) >= 0))
+        throw new Error("Invalid configuration path");
     let node = data;
     for (let i = 0; i < parts.length - 1; i++) {
         const key = parts[i];
-        if (node[key] === undefined || typeof node[key] !== "object")
+        if (node[key] === null || typeof node[key] !== "object" || Array.isArray(node[key]))
             node[key] = {};
         node = node[key];
     }

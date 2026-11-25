@@ -43,10 +43,10 @@ backup() {
     cp -p -- "$file" "$file.zestify.bak.$(date +%s)"
 }
 
-# Caelestia is NOT a runtime dependency of Zestify. Only the core shell,
-# desktop, and locking tools are required.
+# The previous shell is NOT a runtime dependency of Zestify. Only the core
+# shell and desktop tools are required. Quickshell provides session locking and PAM.
 missing=()
-for dep in qs python3 ffmpeg hyprlock jq brightnessctl wpctl; do
+for dep in qs python3 ffmpeg jq brightnessctl wpctl; do
     if ! command -v "$dep" >/dev/null 2>&1; then
         missing+=("$dep")
     fi
@@ -153,7 +153,7 @@ update(Path(sys.argv[2]), "autostart", ['hl.exec_cmd(require("conf.zestify").com
 PY
 fi
 
-# Copy-only migration of Caelestia state into Zestify-owned state.
+# Copy-only migration of legacy shell state into Zestify-owned state.
 run python3 "$ROOT/scripts/migrate-state.py" || true
 
 if (( START )); then

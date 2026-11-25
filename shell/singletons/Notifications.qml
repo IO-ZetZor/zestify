@@ -11,7 +11,7 @@ Singleton {
 
     property var history: []
     property var popups: []
-    readonly property bool dnd: Config.notifications.dnd
+    readonly property bool dnd: Config.notifications.dnd || Focus.suppressNotifications
 
     property int _nextLocalId: -1
     property var _live: ({})
@@ -138,7 +138,10 @@ Singleton {
     }
 
     function toggleDnd() {
-        Config.setValue("notifications.dnd", !root.dnd);
+        const next = !root.dnd;
+        if (!next)
+            Focus.session.muteNotifications = false;
+        Config.setValue("notifications.dnd", next);
     }
 
     function expirePopup(id) {

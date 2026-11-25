@@ -1,6 +1,6 @@
 """Copy-only migration tests for zesti.
 
-No Caelestia executable is invoked; the palette generator is injected so the
+No legacy shell executable is invoked; the palette generator is injected so the
 live desktop is never touched and source files are never modified.
 """
 
@@ -111,6 +111,16 @@ class MigrationTest(unittest.TestCase):
         self.assertTrue(marker.exists())
         data = json.loads(marker.read_text())
         self.assertEqual(data["schema"], 1)
+
+    def test_failed_migration_can_be_retried_without_force(self):
+        failed = migrate(self.source, None, self.paths, generate=self.generator([], fail=True))
+        self.assertFalse(failed.ok)
+        calls = []
+        retried = migrate(self.source, None, self.paths, generate=self.generator(calls))
+        self.assertFalse(retried.skipped)
+        self.assertTrue(retried.ok, retried.errors)
+        self.assertTrue(retried.regenerated)
+        self.assertEqual(len(calls), 1)
 
     def test_rerun_without_force_is_noop(self):
         migrate(self.source, None, self.paths, force=True, generate=self.generator([]))

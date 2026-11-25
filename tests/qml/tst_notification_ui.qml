@@ -47,6 +47,18 @@ Item {
             mouseMove(fixture, 400, 400);
             tryCompare(fixture, "expired", 1, 500);
         }
+
+        function test_hidden_card_cannot_expire_a_hovered_visible_popup() {
+            const visible = createTemporaryObject(cardComponent, fixture, {entry: entry(200), popup: true});
+            const hidden = createTemporaryObject(cardComponent, fixture, {entry: entry(200), popup: true, visible: false});
+            mouseMove(visible, 20, 20);
+            tryCompare(visible, "hovered", true);
+            wait(350);
+            compare(fixture.expired, 0);
+            hidden.destroy();
+            mouseMove(fixture, 400, 400);
+            tryCompare(fixture, "expired", 1, 500);
+        }
         function test_persistent_popup_and_history_do_not_expire() {
             const card = createTemporaryObject(cardComponent, fixture, {entry: entry(0), popup: true});
             const history = createTemporaryObject(cardComponent, fixture, {entry: entry(50), popup: false, y: 180});

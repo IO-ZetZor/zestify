@@ -6,6 +6,7 @@ design spec: "backed directly by materialyoucolor and Pillow" and
 """
 
 import json
+import io
 import tempfile
 import unittest
 from dataclasses import FrozenInstanceError
@@ -20,9 +21,30 @@ from zesti.palette import (
     ROLE_MAP,
     SchemeMetadata,
     generate_palette,
+    _pick_source_color,
     normalize_matugen,
     slug_role,
 )
+
+
+class PaletteThumbnailTest(unittest.TestCase):
+    def test_thumbnail_before_rgb_preserves_the_original_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for mode, extension in [("RGB", ".jpg"), ("RGBA", ".png"), ("L", ".png"),
+                                    ("P", ".png"), ("CMYK", ".jpg")]:
+                with self.subTest(mode=mode):
+                    source = Path(directory) / (mode + extension)
+                    Image.effect_noise((513, 277), 80).convert(mode).save(source)
+                    with Image.open(source) as original:
+                        expected = original.convert("RGB")
+                        expected.thumbnail((128, 128), Image.Resampling.NEAREST)
+                    output = io.BytesIO()
+                    expected.save(output, "JPEG")
+                    def quantize(path, *args):
+                        self.assertEqual(Path(path).read_bytes(), output.getvalue())
+                        return {0xFFBA572A: 20}
+                    with patch("zesti.palette.ImageQuantizeCelebi", side_effect=quantize), patch("zesti.palette._build_payload", return_value={}):
+                        generate_palette(source, PaletteSettings(mode="dark"))
 
 
 def _role(color):
@@ -173,6 +195,59 @@ class GeneratePaletteTest(unittest.TestCase):
         self.assertIn("base16", result)
         self.assertIn("scheme", result)
         self.assertIn("mode", result["scheme"])
+        self.assertEqual(quantize.call_args.args[1:], (1, 128))
+
+    def test_gray_smart_palette_matches_reference_without_blue_accent(self):
+        Image.new("RGB", (16, 16), (128, 128, 128)).save(self.root / "gray.png")
+        payload = generate_palette(self.root / "gray.png", PaletteSettings(mode="dark", smart_scheme=True))
+        self.assertEqual(payload["scheme"]["variant"], "neutral")
+        # Golden roles from the reference palette implementation with materialyoucolor 3.0.2.
+        for role, expected in {"primary": "c6c6c6", "on_primary": "404040", "surface": "030303"}.items():
+            self.assertEqual(payload["colors"][role]["dark"]["color"], expected)
+
+    def test_warm_wallpaper_matches_reference_hard_roles_and_terminals(self):
+        Image.new("RGB", (16, 16), (190, 100, 35)).save(self.root / "warm.png")
+        payload = generate_palette(self.root / "warm.png", PaletteSettings(mode="dark", smart_scheme=True))
+        self.assertEqual(payload["scheme"]["variant"], "tonalspot")
+        self.assertEqual(payload["scheme"]["flavour"], "hard")
+        for role, expected in {"primary": "f6ba96", "on_primary": "5e361c", "surface": "050301"}.items():
+            self.assertEqual(payload["colors"][role]["dark"]["color"], expected)
+        self.assertEqual(payload["base16"]["base01"]["dark"]["color"], "ee6900")
+        self.assertIn("primary_dim", payload["colors"])
+        self.assertIn("surface_container_highest", payload["colors"])
+
+    def test_smart_variant_distinguishes_muted_and_colourful_wallpapers(self):
+        for rgb, expected in [((128, 128, 128), "neutral"), ((150, 130, 110), "content"), ((190, 100, 35), "tonalspot")]:
+            with self.subTest(rgb=rgb):
+                path = self.root / "variant.png"
+                Image.new("RGB", (16, 16), rgb).save(path)
+                payload = generate_palette(path, PaletteSettings(mode="dark", smart_scheme=True))
+                self.assertEqual(payload["scheme"]["variant"], expected)
+
+    def test_explicit_variants_change_the_palette(self):
+        variants = {}
+        for variant in ("tonalspot", "content", "neutral", "vibrant", "expressive", "fidelity", "fruitsalad", "monochrome", "rainbow"):
+            payload = generate_palette(self.root / "source.png", PaletteSettings(mode="dark", variant=variant))
+            self.assertEqual(payload["scheme"]["variant"], variant)
+            variants[variant] = payload["colors"]["primary"]["dark"]["color"]
+        self.assertGreater(len(set(variants.values())), 4)
+
+    def test_smart_mode_uses_average_image_not_selected_accent(self):
+        Image.new("RGB", (16, 16), (255, 255, 255)).save(self.root / "bright.png")
+        with patch("zesti.palette.ImageQuantizeCelebi", return_value={0xFFBA572A: 20}):
+            payload = generate_palette(self.root / "bright.png", PaletteSettings(mode="smart", smart_scheme=True))
+        self.assertEqual(payload["scheme"]["mode"], "light")
+
+    def test_black_wallpaper_does_not_recurse(self):
+        Image.new("RGB", (16, 16), (0, 0, 0)).save(self.root / "black.png")
+        payload = generate_palette(self.root / "black.png", PaletteSettings(smart_scheme=True))
+        self.assertEqual(payload["scheme"]["mode"], "dark")
+        self.assertEqual(payload["scheme"]["variant"], "neutral")
+
+    def test_source_scoring_finds_warm_accent_among_grays(self):
+        self.assertEqual(_pick_source_color({0xFF808080: 900, 0xFFBA572A: 100}), 0xFFBA572A)
+        with self.assertRaises(PaletteError):
+            _pick_source_color({})
 
     def test_invalid_image_raises_palette_error_and_leaves_state_untouched(self):
         bad = self.root / "bad.png"

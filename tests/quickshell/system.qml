@@ -35,6 +35,11 @@ ShellRoot {
         property var historyRam: Array.from({length: 60}, (_, i) => (7.3 + i / 55 + Math.sin(i / 9) * 0.3) * 1073741824)
         property var historyRx: Array.from({length: 60}, (_, i) => (0.2 + Math.pow(Math.sin(i / 12), 4) * 1.4) * 1048576)
         property var historyTx: Array.from({length: 60}, (_, i) => (0.05 + Math.pow(Math.sin(i / 7), 2) * 0.15) * 1048576)
+        property var gpuConsumers: []
+        function setGpuConsumer(consumer, active) {
+            gpuConsumers = gpuConsumers.filter(item => item !== consumer);
+            if (active) gpuConsumers = gpuConsumers.concat([consumer]);
+        }
     }
 
     Window {
@@ -109,6 +114,18 @@ ShellRoot {
                 } else {
                     if (graphs.length !== 5)
                         throw new Error("GPU hotplug did not restore charts");
+                    surface.sampling = true;
+                    if (stats.gpuConsumers.length !== 1)
+                        throw new Error("Visible System did not subscribe to GPU sampling");
+                    surface.visible = false;
+                    if (stats.gpuConsumers.length)
+                        throw new Error("Hidden System retained GPU sampling");
+                    surface.visible = true;
+                    if (stats.gpuConsumers.length !== 1)
+                        throw new Error("Shown System did not restore GPU sampling");
+                    surface.sampling = false;
+                    if (stats.gpuConsumers.length)
+                        throw new Error("Disabled System retained GPU sampling");
                     console.log("SYSTEM PASS: live integrated/discrete GPU charts, unavailable readings, sleep and hotplug");
                     Qt.quit();
                 }

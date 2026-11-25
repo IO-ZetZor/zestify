@@ -13,10 +13,13 @@ Singleton {
     readonly property string scanScript: [
         'data_home="${XDG_DATA_HOME:-$HOME/.local/share}"',
         'data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"',
+        'seen=""',
         'scan() {',
         '    d="$1"',
         '    [ -d "$d" ] || return 0',
-        "    find \"$d\" -maxdepth 1 -type f -name '*.desktop' -exec sh -c '",
+        '    case ":$seen:" in *":$d:"*) return 0 ;; esac',
+        '    seen="$seen:$d"',
+        "    find -L \"$d\" -maxdepth 1 -type f -name '*.desktop' -exec sh -c '",
         '        for f; do',
         '            printf "\\n@@ZESTIFY_FILE@@%s\\n" "$f"',
         '            cat "$f"',
@@ -24,8 +27,6 @@ Singleton {
         "    ' sh {} +",
         '}',
         'scan "$data_home/applications"',
-        'scan /usr/local/share/applications',
-        'scan /usr/share/applications',
         'oldifs="$IFS"',
         'IFS=:',
         'for base in $data_dirs; do scan "$base/applications"; done',
@@ -41,7 +42,7 @@ Singleton {
     function launch(app) {
         if (!app || !app.exec)
             return;
-        let command = Desktop.resolveExec(app.exec);
+        let command = Desktop.resolveExec(app.exec, app);
         if (command.length === 0)
             return;
         if (app.terminal) {

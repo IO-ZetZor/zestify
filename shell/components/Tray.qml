@@ -40,11 +40,16 @@ Row {
 
             Image {
                 id: trayIcon
+                objectName: "pillTrayIcon"
                 anchors.fill: parent
                 source: root.iconSource(trayItem.modelData)
                 visible: source.toString().length > 0
                 fillMode: Image.PreserveAspectFit
+                // Let the icon provider select a bitmap for the rendered size.
+                sourceSize.width: Math.ceil(width)
+                sourceSize.height: Math.ceil(height)
                 smooth: true
+                mipmap: true
             }
 
             Text {

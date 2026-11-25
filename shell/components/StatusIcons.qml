@@ -39,6 +39,7 @@ Row {
 
     Text {
         id: wifiIcon
+        objectName: "pillWifiIcon"
         text: "\uf1eb"
         color: wifiHover.hovered
             ? root.theme.bright
@@ -58,6 +59,7 @@ Row {
 
     Text {
         id: bluetoothIcon
+        objectName: "pillBluetoothIcon"
         text: "\uf293"
         color: bluetoothHover.hovered
             ? root.theme.bright
@@ -77,6 +79,7 @@ Row {
 
     Text {
         id: batteryIcon
+        objectName: "pillBatteryIcon"
         text: Battery.icon(root.batteryLevel, root.charging)
         color: batteryHover.hovered
             ? root.theme.bright

@@ -1,0 +1,16 @@
+<RCC>
+  <qresource prefix="/">
+    <file>theme-schema.json</file>
+    <file>qml/Login.qml</file>
+    <file>qml/Positioned.qml</file>
+    <file>qml/ThemeIcon.qml</file>
+    <file>qml/LoginField.qml</file>
+    <file>qml/LoginChoice.qml</file>
+    <file>qml/ThemeButton.qml</file>
+    <file>qml/Wallpaper.qml</file>
+    <file>qml/VideoWallpaper.qml</file>
+    <file>qml/ThemeEditor.qml</file>
+    <file>qml/FontPicker.qml</file>
+    <file>qml/AssetPicker.qml</file>
+  </qresource>
+</RCC>

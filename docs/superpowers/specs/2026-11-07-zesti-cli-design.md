@@ -4,7 +4,7 @@
 
 ## Intent
 
-Replace the installed Caelestia CLI runtime dependency with a Zestify-owned
+Replace the installed legacy CLI runtime dependency with a Zestify-owned
 CLI named `zesti`. Zesti must own wallpaper state, palette generation,
 application theme generation, desktop utility commands, and shell control.
 The existing Zestify Quickshell process must continue to start, stop, receive
@@ -12,14 +12,14 @@ IPC calls, render its surfaces, and handle the session exactly as it does now.
 
 `zesti` is the primary public command. The existing `zestify` command remains
 as a silent compatibility entry point for current shell code, keybindings, and
-user scripts. Zesti does not install a command named `caelestia` and does not
-shadow or modify an installed Caelestia package.
+user scripts. Zesti does not install a legacy compatibility command and does not
+shadow or modify an installed legacy package.
 
 ## Goals
 
-- Remove all runtime calls to the `caelestia` executable and all reads from
-  Caelestia-owned state after the installation handoff.
-- Cover the useful capabilities of Caelestia's `shell`, `toggle`, `scheme`,
+- Remove all runtime calls to the legacy executable and all reads from
+  legacy-owned state after the installation handoff.
+- Cover the useful capabilities of the legacy shell's `shell`, `toggle`, `scheme`,
   `screenshot`, `record`, `clipboard`, `emoji`, `wallpaper`, `resizer`,
   `install`, and `update` commands with Zesti-owned behavior.
 - Preserve every command currently used by the Zestify shell and Hyprland
@@ -27,7 +27,7 @@ shadow or modify an installed Caelestia package.
 - Keep the Quickshell configuration and IPC identity `zestify`; changing the
   executable must not create a second shell process or rename shell IPC.
 - Generate dynamic Material palettes with Zesti-owned adaptations of
-  Caelestia's GPL palette-selection/generation algorithms, backed directly by
+  the legacy shell's GPL palette-selection/generation algorithms, backed directly by
   `materialyoucolor` and Pillow, plus repository-owned templates.
 - Store configuration, state, data, and cache only in Zestify XDG paths.
 - Provide clear non-zero exits and actionable errors when optional desktop
@@ -35,15 +35,15 @@ shadow or modify an installed Caelestia package.
 
 ## Non-goals and Anti-goals
 
-- Do not install a fake `caelestia` compatibility executable.
-- Do not manage or reinstall the broader Caelestia dotfiles distribution.
-- Do not import Caelestia Python modules or QML modules at runtime.
+- Do not install a fake legacy compatibility executable.
+- Do not manage or reinstall the broader legacy desktop configuration distribution.
+- Do not import the legacy shell Python modules or QML modules at runtime.
 - Do not delegate palette generation to `matugen` or another CLI backend.
 - Do not change the visible shell design, IPC target, surface names, session
   timeouts, or startup semantics as part of this project.
-- Do not silently fall back to Caelestia if Zesti fails. That would hide an
+- Do not silently fall back to the legacy shell if Zesti fails. That would hide an
   incomplete replacement.
-- Do not delete the user's Caelestia package, state, configuration, or themes.
+- Do not delete the user's legacy package, state, configuration, or themes.
 
 ## Naming and Compatibility
 
@@ -104,7 +104,7 @@ where `qs -n` skips relaunch.
 
 Valid surfaces remain `launcher`, `wallpaper`, `system`, `media`, `audio`,
 `calendar`, `power`, `network`, `bluetooth`, and `battery`. `call` provides a
-raw escape hatch equivalent to Caelestia's positional shell messages.
+raw escape hatch equivalent to the legacy shell's positional shell messages.
 
 ### Wallpaper and palette
 
@@ -124,8 +124,7 @@ zesti scheme set [--name NAME] [--flavour NAME]
 zesti scheme apply
 ```
 
-The command names are Zesti's own action-oriented interface. They cover
-Caelestia's wallpaper and scheme capabilities without preserving every old
+The command names are Zesti's own action-oriented interface. They cover the legacy shell's wallpaper and scheme capabilities without preserving every old
 flag spelling. Current Zestify wallpaper commands remain accepted only through
 the compatibility launcher.
 
@@ -138,10 +137,10 @@ wallpaper and clears overrides.
 
 Video wallpaper palette generation uses a cached `ffmpeg` frame. Images and
 frames are opened with Pillow, quantized through `materialyoucolor`, and scored
-with an adapted copy of Caelestia's GPL source-colour selection. An adapted
+with an adapted copy of the legacy shell's GPL source-colour selection. An adapted
 palette generator creates the selected Material variant and harmonizes the
 terminal and named accent roles expected by the shell. Zesti owns this code in
-its package: it neither imports Caelestia nor invokes a palette CLI.
+its package: it neither imports the legacy shell nor invokes a palette CLI.
 
 The generator selects the effective light/dark mode, emits the camelCase roles
 consumed by the shell without leading `#`, derives `term0` through `term15`,
@@ -151,7 +150,7 @@ failure uses the built-in dark fallback rather than crashing the shell.
 
 Static schemes and application templates are repository data under `data/`.
 Any adapted GPL material retains attribution in `NOTICE`; runtime imports from
-Caelestia are forbidden. Zesti owns template rendering and can apply terminal
+The legacy shell are forbidden. Zesti owns template rendering and can apply terminal
 sequences, Hyprland colors, Fuzzel, GTK, Qt, btop, cava, and the other shipped
 templates enabled in configuration. A failure in one optional application
 adapter is reported but does not prevent state and the shell palette from
@@ -180,9 +179,9 @@ silently taking a live capture when unavailable. Recording uses
 `gpu-screen-recorder`; its state and notification ID live under Zestify state.
 Clipboard uses `cliphist`, `fuzzel`, and `wl-copy`. Emoji data is shipped under
 `data/`, and `fetch` refreshes it atomically. Workspace/window commands use a
-small native Hyprland socket adapter and Zestify configuration, not Caelestia.
+small native Hyprland socket adapter and Zestify configuration, not the legacy shell.
 
-The old Caelestia-style verbs `toggle` and `resizer` may be accepted as hidden
+The old legacy-style verbs `toggle` and `resizer` may be accepted as hidden
 aliases by `zesti`, but documentation and new code use `workspace` and
 `window`.
 
@@ -215,7 +214,7 @@ ones and checks writable XDG paths, shell IPC, required Python palette
 libraries, and wallpaper state. `install` invokes this repository's installer. `update --check` reports
 whether the checked-out branch is behind its upstream; plain `update` refuses
 a dirty tree, performs a fast-forward-only Git update, reruns installation,
-and restarts the shell only if it was running. It never updates Caelestia.
+and restarts the shell only if it was running. It never updates the legacy shell.
 
 ## Configuration and State
 
@@ -253,19 +252,19 @@ is idempotent and recorded with a schema version in
 
 On the first run it copies, never moves or deletes:
 
-- Caelestia's current global and per-monitor wallpaper paths;
+- the legacy shell's current global and per-monitor wallpaper paths;
 - the current scheme metadata as an immediate fallback;
 - user CLI preferences that map cleanly to Zesti configuration;
-- no dotfiles deployment state.
+- no desktop configuration deployment state.
 
 Zesti then regenerates the current palette with Matugen when the source file is
 available. If regeneration fails, the copied valid scheme keeps the shell
 usable and migration reports the failure. Re-running without `--force` is a
 no-op. `--force` re-imports user-editable source state but still never deletes
-Caelestia data.
+The legacy shell data.
 
 QML palette/wallpaper watchers, the lock script, and the wallpaper backend are
-changed together from `.../caelestia/...` to `.../zestify/...`; there must be no
+changed together from `.../<previous-shell>/...` to `.../zestify/...`; there must be no
 release state where writes and watches point to different roots.
 
 ## Installer and Uninstaller
@@ -273,16 +272,16 @@ release state where writes and watches point to different roots.
 The installer:
 
 - requires `zesti` core dependencies, including `matugen`, instead of
-  `caelestia`;
+  the legacy CLI;
 - reports optional dependencies by feature rather than failing installation;
 - links both CLI names;
 - changes managed autostart to `zesti shell start`;
-- detects and stops a running Caelestia shell only during the one-time handoff;
-- does not call Caelestia for migration or wallpaper generation;
+- detects and stops a running legacy shell only during the one-time handoff;
+- does not call the legacy CLI for migration or wallpaper generation;
 - starts Zestify and verifies `zesti shell status`.
 
 The uninstaller removes both CLI links and its managed blocks. It no longer
-restores `caelestia shell` or starts Caelestia, because Zesti is now the owned
+restores the legacy autostart or starts the previous shell, because Zesti is now the owned
 installation rather than a temporary overlay. It still preserves Zestify
 configuration/state unless `--purge` is explicit.
 
@@ -302,7 +301,7 @@ zesti/hypr.py              Hyprland socket messages and dispatch
 zesti/capture.py           screenshot and recording
 zesti/desktop.py           clipboard, emoji, workspace/window tools
 zesti/doctor.py            diagnostics
-zesti/migrate.py           one-time Caelestia import
+zesti/migrate.py           one-time legacy import
 data/schemes/              repository-owned static palettes
 data/templates/            repository-owned application templates
 data/emojis.txt            built-in picker data
@@ -343,25 +342,25 @@ Required automated coverage includes:
 - screenshot/record/clipboard cancellation and missing dependencies;
 - Hyprland workspace and window dispatch using fake sockets;
 - installer dry-run/idempotency and uninstaller round-trip;
-- proof that no runtime code invokes/imports Caelestia;
+- proof that no runtime code invokes/imports the legacy shell;
 - QML tests updated to Zestify state and `zesti` command paths;
 - the complete Python, QML, and `qmllint` suite.
 
 Manual acceptance on the live desktop checks:
 
-1. `zesti migrate`, then remove `caelestia` from `PATH`.
+1. `zesti migrate`, then remove the legacy CLI from `PATH`.
 2. Start, status, open every surface, restart, and stop the shell.
 3. Apply image and video wallpapers globally and per monitor; verify shell and
    configured application palettes update.
 4. Lock/unlock, idle handling, volume/brightness OSD, and sleep behavior.
 5. Screenshot, recording, clipboard, emoji, workspace toggle, and window PiP.
-6. Reboot/login autostart with no Caelestia shell or CLI process involved.
+6. Reboot/login autostart with no legacy shell or CLI process involved.
 7. Run `zestify` legacy commands and verify identical shell-visible behavior.
 
 The replacement is complete when the test suite passes, manual shell behavior
-is unchanged, `grep` finds no runtime Caelestia invocation or state read
+is unchanged, `grep` finds no runtime legacy invocation or state read
 outside migration/attribution, and installation no longer requires the
-Caelestia CLI.
+legacy CLI.
 
 ## Builder-owned Calls
 

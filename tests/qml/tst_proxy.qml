@@ -40,4 +40,14 @@ TestCase {
         compare(fallback.width, 1920);
         compare(fallback.height, 1200);
     }
+
+    function test_resolution_presets_preserve_orientation_and_do_not_upscale() {
+        compare(ProxyLib.resolutionSize("1080p", 3840, 2160), {width: 1920, height: 1080});
+        compare(ProxyLib.resolutionSize("1080p", 2160, 3840), {width: 1080, height: 1920});
+        compare(ProxyLib.resolutionSize("1080p", 1920, 1200), {width: 1728, height: 1080});
+        compare(ProxyLib.resolutionSize("720p", 1920, 1200), {width: 1152, height: 720});
+        compare(ProxyLib.resolutionSize("1080p", 1280, 720), {width: 1280, height: 720});
+        compare(ProxyLib.resolutionSize("720p", 768, 1366), {width: 718, height: 1280});
+        compare(ProxyLib.resolutionSize("1080p", 0, 0), {width: 0, height: 0});
+    }
 }

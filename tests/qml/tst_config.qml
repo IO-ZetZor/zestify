@@ -17,6 +17,21 @@ TestCase {
         compare(data.theme.transparency, 0.5);
     }
 
+    function test_setValue_replaces_null_intermediate() {
+        const data = {theme: null};
+        ConfigLib.setValue(data, "theme.mode", "light");
+        compare(data.theme.mode, "light");
+    }
+
+    function test_setValue_rejects_unsafe_or_empty_paths() {
+        for (const path of ["__proto__.polluted", "constructor.prototype.polluted", "", "theme..mode"]) {
+            let failed = false;
+            try { ConfigLib.setValue({}, path, true); } catch (error) { failed = true; }
+            verify(failed, path);
+        }
+        compare(({}).polluted, undefined);
+    }
+
     function test_setValue_overwrites_existing_value() {
         const data = { bar: { height: 34 } };
         ConfigLib.setValue(data, "bar.height", 42);

@@ -1,0 +1,841 @@
+{
+  "date": "2026-11-13",
+  "hardware": {
+    "gpu": "Intel integrated ADL GT2",
+    "pciDevice": "0x46a3",
+    "graphicsRenderer": "Mesa Intel(R) Graphics (ADL GT2)",
+    "mesa": "26.2.4-arch1.1"
+  },
+  "software": {
+    "hyprland": "0.56.2",
+    "quickshell": "0.3.1 (2d3b3e9c70ef380dff751b61d334dc88df016c29)",
+    "qt": "6.12.0",
+    "ffmpeg": "n9.0.2"
+  },
+  "workload": {
+    "source": "First 8 seconds of the active 3840x2160 H.264 Main, yuv420p, 30 FPS wallpaper",
+    "canvasWidth": 1920,
+    "canvasHeight": 1200,
+    "refreshRateHz": 60,
+    "audio": false
+  },
+  "method": {
+    "rounds": 3,
+    "sampleSecondsPerTrial": 8,
+    "warmupSeconds": 2,
+    "order": "Forward, reverse, forward",
+    "compositor": "Isolated nested Hyprland with headless output; blur and animations disabled",
+    "renderer": "Production VideoWallpaper.qml, Qt FFmpeg backend and native Intel OpenGL",
+    "gpuCounters": "Per-process /proc/PID/fdinfo DRM engine nanoseconds, deduplicated by device/client ID",
+    "cpuCounters": "Per-process /proc/PID/stat user + system ticks",
+    "gpuClock": "Not fixed or sampled"
+  },
+  "limits": [
+    "Includes the isolated wallpaper and compositor only; excludes other desktop apps and physical display scanout.",
+    "Render busy times varied considerably across repeats.",
+    "Engine percentages are reported separately and must not be added across render and video engines.",
+    "CPU percentage is relative to one core.",
+    "RSS is sampled resident memory, not peak memory."
+  ],
+  "combinedSummary": [
+    {
+      "name": "previous_30_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 30,
+      "framesPerSecond": 30.09632976976821,
+      "gpuRenderPercent": {
+        "median": 8.002371716963287,
+        "min": 7.443512744385252,
+        "max": 14.206737723200522
+      },
+      "gpuVideoPercent": {
+        "median": 4.842346540065847,
+        "min": 4.805178762230828,
+        "max": 4.961469503287302
+      },
+      "cpuPercentOfOneCore": {
+        "median": 10.61649488309683,
+        "min": 9.865601874737298,
+        "max": 12.86078002843426
+      },
+      "rssMiB": {
+        "median": 454.39453125,
+        "min": 450.19140625,
+        "max": 461.73828125
+      },
+      "reductionVsPreviousPercent": {
+        "gpuRenderPercent": 0.0,
+        "gpuVideoPercent": 0.0,
+        "cpuPercentOfOneCore": 0.0
+      }
+    },
+    {
+      "name": "default_24_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 24,
+      "framesPerSecond": 24.10443598139279,
+      "gpuRenderPercent": {
+        "median": 7.346560639880247,
+        "min": 6.849664436458878,
+        "max": 9.16870962439999
+      },
+      "gpuVideoPercent": {
+        "median": 4.36441799861825,
+        "min": 4.225098526551106,
+        "max": 4.578622202454165
+      },
+      "cpuPercentOfOneCore": {
+        "median": 8.618506979515951,
+        "min": 8.617051212957055,
+        "max": 9.741689153101749
+      },
+      "rssMiB": {
+        "median": 454.84765625,
+        "min": 453.7578125,
+        "max": 455.359375
+      },
+      "reductionVsPreviousPercent": {
+        "gpuRenderPercent": 8.195208874049975,
+        "gpuVideoPercent": 9.86977155586015,
+        "cpuPercentOfOneCore": 18.819656822535634
+      }
+    },
+    {
+      "name": "24_1080p",
+      "width": 1728,
+      "height": 1080,
+      "fps": 24,
+      "framesPerSecond": 24.102626345427176,
+      "gpuRenderPercent": {
+        "median": 6.882664888276541,
+        "min": 6.7720850564545705,
+        "max": 6.946527023409455
+      },
+      "gpuVideoPercent": {
+        "median": 3.4924379818533775,
+        "min": 3.371530186659822,
+        "max": 3.773663935130176
+      },
+      "cpuPercentOfOneCore": {
+        "median": 8.368390787218898,
+        "min": 8.36723298001876,
+        "max": 8.618892660202512
+      },
+      "rssMiB": {
+        "median": 445.9140625,
+        "min": 444.9765625,
+        "max": 447.83984375
+      },
+      "reductionVsPreviousPercent": {
+        "gpuRenderPercent": 13.992187170126213,
+        "gpuVideoPercent": 27.87715722208748,
+        "cpuPercentOfOneCore": 21.175577444654326
+      }
+    },
+    {
+      "name": "15_720p",
+      "width": 1152,
+      "height": 720,
+      "fps": 15,
+      "framesPerSecond": 15.114196761345557,
+      "gpuRenderPercent": {
+        "median": 4.421546892136333,
+        "min": 4.222765650136409,
+        "max": 4.5114680183657345
+      },
+      "gpuVideoPercent": {
+        "median": 0.9878607026071894,
+        "min": 0.9548573110445376,
+        "max": 1.0383466336020428
+      },
+      "cpuPercentOfOneCore": {
+        "median": 5.246250115508375,
+        "min": 5.244436508363331,
+        "max": 5.248668183908592
+      },
+      "rssMiB": {
+        "median": 411.26171875,
+        "min": 410.75390625,
+        "max": 414.265625
+      },
+      "reductionVsPreviousPercent": {
+        "gpuRenderPercent": 44.74704439480591,
+        "gpuVideoPercent": 79.59954550064572,
+        "cpuPercentOfOneCore": 50.583971703681115
+      }
+    },
+    {
+      "name": "paused",
+      "width": 1920,
+      "height": 1200,
+      "fps": 0,
+      "framesPerSecond": 0.0,
+      "gpuRenderPercent": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "gpuVideoPercent": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "cpuPercentOfOneCore": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "rssMiB": {
+        "median": 440.1328125,
+        "min": 436.35546875,
+        "max": 440.51171875
+      },
+      "reductionVsPreviousPercent": {
+        "gpuRenderPercent": 100.0,
+        "gpuVideoPercent": 100.0,
+        "cpuPercentOfOneCore": 100.0
+      }
+    }
+  ],
+  "perProcessSummary": [
+    {
+      "name": "previous_30_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 30,
+      "paused": false,
+      "framesPerSecond": 30.09632976976821,
+      "shell": {
+        "cpuPercent": 7.492862183344783,
+        "rssKiB": 305764,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 1.7190003271233045,
+          "video": 4.842346540065847,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.622898735823923,
+        "rssKiB": 159536,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 6.262739076465687,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "default_24_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 24,
+      "paused": false,
+      "framesPerSecond": 24.10443598139279,
+      "shell": {
+        "cpuPercent": 6.369124809576954,
+        "rssKiB": 306228,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 1.5043762901596598,
+          "video": 4.36441799861825,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.3732120668232333,
+        "rssKiB": 159536,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 5.758836351390898,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "24_1080p",
+      "width": 1728,
+      "height": 1080,
+      "fps": 24,
+      "paused": false,
+      "framesPerSecond": 24.102626345427176,
+      "shell": {
+        "cpuPercent": 6.244203716431911,
+        "rssKiB": 297080,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 1.4761054470117425,
+          "video": 3.4924379818533775,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.2482243905961217,
+        "rssKiB": 159536,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 5.364298053162308,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "15_720p",
+      "width": 1152,
+      "height": 720,
+      "fps": 15,
+      "paused": false,
+      "framesPerSecond": 15.114196761345557,
+      "shell": {
+        "cpuPercent": 3.870893613315792,
+        "rssKiB": 261596,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 0.9033632492110677,
+          "video": 0.9878607026071894,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 1.3740178873950506,
+        "rssKiB": 159536,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 3.5181836429252655,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "paused",
+      "width": 1920,
+      "height": 1200,
+      "fps": 0,
+      "paused": true,
+      "framesPerSecond": 0.0,
+      "shell": {
+        "cpuPercent": 0.0,
+        "rssKiB": 291156,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 0.0,
+        "rssKiB": 159536,
+        "enginesPercent": {
+          "copy": 0.0,
+          "render": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    }
+  ],
+  "rawTrials": [
+    {
+      "name": "previous_30_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 30,
+      "paused": false,
+      "round": 0,
+      "elapsedSeconds": 8.00884548,
+      "framesPerSecond": 30.091728027695698,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 7.491716521418016,
+        "rssKiB": 313284,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.7190003271233045,
+          "copy": 0.0,
+          "video": 4.842346540065847,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 5.369063507016245,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 12.487737396077218,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "default_24_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 24,
+      "paused": false,
+      "round": 0,
+      "elapsedSeconds": 8.006824974,
+      "framesPerSecond": 24.10443598139279,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 6.619352886081958,
+        "rssKiB": 305112,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.4776434402423841,
+          "copy": 0.0,
+          "video": 4.225098526551106,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 3.1223362670197914,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 7.691066184157605,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "24_1080p",
+      "width": 1728,
+      "height": 1080,
+      "fps": 24,
+      "paused": false,
+      "round": 0,
+      "elapsedSeconds": 8.005668793,
+      "framesPerSecond": 23.983005663172207,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 6.370485879280118,
+        "rssKiB": 299052,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.4437053416581433,
+          "copy": 0.0,
+          "video": 3.371530186659822,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.248406780922394,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 5.328379714796427,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "15_720p",
+      "width": 1152,
+      "height": 720,
+      "fps": 15,
+      "paused": false,
+      "round": 0,
+      "elapsedSeconds": 8.005718194,
+      "framesPerSecond": 15.114196761345557,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 3.8722322281133246,
+        "rssKiB": 261076,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.9033632492110677,
+          "copy": 0.0,
+          "video": 0.9878607026071894,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 1.3740178873950506,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 3.5181836429252655,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "paused",
+      "width": 1920,
+      "height": 1200,
+      "fps": 0,
+      "paused": true,
+      "round": 0,
+      "elapsedSeconds": 8.00635147,
+      "framesPerSecond": 0.0,
+      "playbackState": 2,
+      "shell": {
+        "cpuPercent": 0.0,
+        "rssKiB": 291548,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.0,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 0.0,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.0,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "paused",
+      "width": 1920,
+      "height": 1200,
+      "fps": 0,
+      "paused": true,
+      "round": 1,
+      "elapsedSeconds": 8.006651963,
+      "framesPerSecond": 0.0,
+      "playbackState": 2,
+      "shell": {
+        "cpuPercent": 0.0,
+        "rssKiB": 287292,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.0,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 0.0,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.0,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "15_720p",
+      "width": 1152,
+      "height": 720,
+      "fps": 15,
+      "paused": false,
+      "round": 1,
+      "elapsedSeconds": 8.002029949,
+      "framesPerSecond": 15.12116310126047,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 3.7490487027918515,
+        "rssKiB": 261596,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.8803777597558701,
+          "copy": 0.0,
+          "video": 0.9548573110445376,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 1.4996194811167407,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 3.342387890380538,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "24_1080p",
+      "width": 1728,
+      "height": 1080,
+      "fps": 24,
+      "paused": false,
+      "round": 1,
+      "elapsedSeconds": 8.00742613,
+      "framesPerSecond": 24.102626345427176,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 6.244203716431911,
+        "rssKiB": 296120,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.582228970247147,
+          "copy": 0.0,
+          "video": 3.773663935130176,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.12302926358685,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 5.364298053162308,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "default_24_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 24,
+      "paused": false,
+      "round": 1,
+      "elapsedSeconds": 8.006027049,
+      "framesPerSecond": 24.106838362993894,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 6.245294912692718,
+        "rssKiB": 306752,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.587724288489348,
+          "copy": 0.0,
+          "video": 4.578622202454165,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.3732120668232333,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 5.758836351390898,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "previous_30_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 30,
+      "paused": false,
+      "round": 1,
+      "elapsedSeconds": 8.006408983,
+      "framesPerSecond": 30.100885492074543,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 7.993596147272908,
+        "rssKiB": 305764,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.7396326404976008,
+          "copy": 0.0,
+          "video": 4.961469503287302,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.622898735823923,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 6.262739076465687,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "previous_30_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 30,
+      "paused": false,
+      "round": 2,
+      "elapsedSeconds": 8.007620924,
+      "framesPerSecond": 30.09632976976821,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 7.492862183344783,
+        "rssKiB": 301460,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.671550555032243,
+          "copy": 0.0,
+          "video": 4.805178762230828,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.3727396913925145,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 5.771962189353009,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "default_24_full",
+      "width": 1920,
+      "height": 1200,
+      "fps": 24,
+      "paused": false,
+      "round": 2,
+      "elapsedSeconds": 8.007379589,
+      "framesPerSecond": 24.102766436242195,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 6.369124809576954,
+        "rssKiB": 306228,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.5043762901596598,
+          "copy": 0.0,
+          "video": 4.36441799861825,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.247926403380101,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 5.345288146299218,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "24_1080p",
+      "width": 1728,
+      "height": 1080,
+      "fps": 24,
+      "paused": false,
+      "round": 2,
+      "elapsedSeconds": 8.006318264,
+      "framesPerSecond": 24.105961521391748,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 6.120166396622776,
+        "rssKiB": 297080,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 1.4761054470117425,
+          "copy": 0.0,
+          "video": 3.4924379818533775,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 2.2482243905961217,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 5.406559441264799,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "15_720p",
+      "width": 1152,
+      "height": 720,
+      "fps": 15,
+      "paused": false,
+      "round": 2,
+      "elapsedSeconds": 8.008486695,
+      "framesPerSecond": 15.108971845522932,
+      "playbackState": 1,
+      "shell": {
+        "cpuPercent": 3.870893613315792,
+        "rssKiB": 264672,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.9273267575803845,
+          "copy": 0.0,
+          "video": 1.0383466336020428,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 1.3735428950475392,
+        "rssKiB": 159536,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 3.58414126078535,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    },
+    {
+      "name": "paused",
+      "width": 1920,
+      "height": 1200,
+      "fps": 0,
+      "paused": true,
+      "round": 2,
+      "elapsedSeconds": 8.008328852,
+      "framesPerSecond": 0.0,
+      "playbackState": 2,
+      "shell": {
+        "cpuPercent": 0.0,
+        "rssKiB": 291156,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.0,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      },
+      "compositor": {
+        "cpuPercent": 0.0,
+        "rssKiB": 159540,
+        "engineCapacities": {},
+        "enginesPercent": {
+          "render": 0.0,
+          "copy": 0.0,
+          "video": 0.0,
+          "video-enhance": 0.0
+        }
+      }
+    }
+  ]
+}

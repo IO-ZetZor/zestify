@@ -36,14 +36,14 @@ PanelWindow {
         x: 0
         y: drawer.topInset
         width: drawer.edgeWidth
-        height: Math.max(0, drawer.height - y)
+        height: Math.max(0, drawer.height - y - drawer.bottomInset)
     }
     Region {
         id: fullMask
         x: 0
         y: drawer.topInset
-        width: drawer.width
-        height: Math.max(0, drawer.height - y)
+        width: Math.max(0, drawer.width - Math.max(8 * root.uiScale, 6))
+        height: Math.max(0, drawer.height - y - drawer.bottomInset)
     }
     onOwnsDrawerChanged: {
         if (ownsDrawer && !drawer.dragging) drawer.open();
@@ -57,6 +57,7 @@ PanelWindow {
         motion: root.motion
         s: root.s
         topInset: Math.max(8 * root.uiScale, 6)
+        bottomInset: Math.max(8 * root.uiScale, 6)
         backgroundOpacity: root.backgroundOpacity
         enabled: !Session.locked && Session.dpmsActive
         onPullStarted: ShellState.openNotifications(root.screenName)

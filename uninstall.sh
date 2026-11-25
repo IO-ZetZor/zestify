@@ -101,6 +101,15 @@ drop_autostart_block(autostart)
 PY
 
 if (( PURGE )); then
+    python3 - "$ROOT" <<'PY'
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from zesti.dolphin import prepare_purge
+from zesti.paths import Paths
+prepare_purge(Paths.from_env(os.environ), Path.home())
+PY
     rm -rf -- "$CONFIG_DIR" "$STATE_DIR" "$CACHE_DIR"
 fi
 

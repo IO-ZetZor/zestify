@@ -14,6 +14,7 @@ Text {
     font.family: theme.fontFamily
     font.pixelSize: theme.fs.title * s
     font.weight: Font.Medium
+    onVisibleChanged: if (visible) root.now = new Date()
 
     MouseArea {
         anchors.fill: parent
@@ -22,9 +23,9 @@ Text {
     }
 
     Timer {
-        interval: 1000
+        interval: Math.max(1, 60000 - root.now.getTime() % 60000)
         repeat: true
-        running: true
+        running: root.visible
         onTriggered: root.now = new Date()
     }
 }

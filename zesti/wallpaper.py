@@ -1,6 +1,6 @@
 """Zesti-owned wallpaper state: listing, setting, thumbnails, and palette hooks.
 
-No Caelestia executable or state is read or written. All state lives under the
+No external shell executable or state is read or written. All state lives under the
 Zestify XDG roots owned by :mod:`zesti.paths`. Wallpaper changes are
 transactional: the palette is generated *before* any state file is committed,
 so a failure leaves every prior state file byte-identical.
@@ -9,10 +9,13 @@ so a failure leaves every prior state file byte-identical.
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import os
 import shutil
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Mapping
@@ -45,6 +48,7 @@ class WallpaperServices:
     run: Callable[..., int] = field(default_factory=lambda: _default_run)
     rng: object = field(default_factory=lambda: __import__("random"))
     primary_monitor: str = "eDP-1"
+    palette_settings: PaletteSettings = field(default_factory=PaletteSettings)
 
 
 def _default_run(cmd, **kwargs):  # pragma: no cover - real subprocess path
@@ -171,14 +175,34 @@ def extract_palette_source(path: Path, paths: Paths, run: Callable[..., int]) ->
     cache_dir.mkdir(parents=True, exist_ok=True)
     target = cache_dir / f"{_stamp_key(path)}.jpg"
     if not (target.exists() and target.stat().st_size > 0):
-        command = [
-            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-            "-ss", "2", "-i", str(path), "-frames:v", "1",
-            "-vf", "scale=960:-1:flags=lanczos", "-q:v", "2", str(target),
-        ]
-        if run(command) != 0 or not (target.exists() and target.stat().st_size > 0):
-            raise WallpaperError(f"ffmpeg frame extraction failed for {path}")
+        fd, name = tempfile.mkstemp(dir=cache_dir, prefix=".frame-", suffix=".jpg")
+        os.close(fd)
+        temporary = Path(name)
+        try:
+            for seek in ("2", "0"):
+                temporary.write_bytes(b"")
+                command = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", seek, "-i", str(path), "-frames:v", "1",
+                    "-vf", "scale=960:-1:flags=lanczos", "-q:v", "2", str(temporary),
+                ]
+                if run(command, timeout=30) == 0 and temporary.stat().st_size > 0:
+                    break
+            else:
+                raise WallpaperError(f"ffmpeg frame extraction failed for {path}")
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
     return target
+
+
+def cached_palette_source(path: Path, paths: Paths) -> Path | None:
+    """Return an existing video frame without launching FFmpeg."""
+    path = Path(path)
+    if path.suffix.lower() not in VIDEO_EXTENSIONS:
+        return path
+    frame = paths.cache_home / "wallpapers" / f"{_stamp_key(path)}.jpg"
+    return frame if frame.is_file() and frame.stat().st_size > 0 else None
 
 
 def make_thumbnail(path: Path, paths: Paths, run: Callable[..., int]) -> Path:
@@ -204,10 +228,58 @@ def _write_state_file(paths: Paths, name: str, content: str) -> None:
 
 def _copy_to_thumbnail(source: Path, paths: Paths) -> None:
     paths.wallpaper_dir.mkdir(parents=True, exist_ok=True)
+    target = paths.wallpaper_dir / "thumbnail.jpg"
+    temporary = None
     try:
-        shutil.copy2(source, paths.wallpaper_dir / "thumbnail.jpg")
-    except OSError:  # includes shutil.SameFileError
-        atomic_write(paths.wallpaper_dir / "thumbnail.jpg", "")
+        if target.exists() and source.samefile(target):
+            return
+        fd, name = tempfile.mkstemp(dir=target.parent, prefix=".thumbnail-")
+        os.close(fd)
+        temporary = Path(name)
+        shutil.copy2(source, temporary)
+        temporary.replace(target)
+    except OSError:
+        pass  # Keep a valid previous thumbnail when the optional copy fails.
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+@contextmanager
+def _wallpaper_lock(paths: Paths):
+    paths.wallpaper_dir.mkdir(parents=True, exist_ok=True)
+    with (paths.wallpaper_dir / ".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+@contextmanager
+def _state_transaction(paths: Paths, files):
+    # Keep backups on disk so large existing thumbnails do not inflate RSS.
+    with tempfile.TemporaryDirectory(prefix=".transaction-", dir=paths.wallpaper_dir) as directory:
+        backups = {}
+        for index, path in enumerate(dict.fromkeys(files)):
+            backup = Path(directory) / str(index)
+            if path.exists() or path.is_symlink():
+                shutil.copy2(path, backup, follow_symlinks=False)
+                backups[path] = backup
+            else:
+                backups[path] = None
+        try:
+            yield
+        except BaseException as error:
+            failures = []
+            for path, backup in backups.items():
+                try:
+                    if backup is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        backup.replace(path)
+                except OSError as rollback:
+                    failures.append(f"{path}: {rollback}")
+            if failures:
+                raise WallpaperError(f"{error}; could not restore state: {'; '.join(failures)}") from error
+            raise
 
 
 def set_wallpaper(
@@ -266,7 +338,7 @@ def set_wallpaper(
     # written, so prior state stays byte-identical.
     try:
         source = extract_palette_source(path, paths, services.run)
-        scheme = services.generate_palette(source, PaletteSettings(), services.run)
+        scheme = services.generate_palette(source, services.palette_settings, services.run)
     except WallpaperError as exc:
         result["error"] = str(exc)
         return result
@@ -275,51 +347,98 @@ def set_wallpaper(
         return result
 
     try:
-        if destination == "monitor":
-            monitor = monitor or ""
-            paths.monitor_dir.mkdir(parents=True, exist_ok=True)
-            atomic_write(
-                paths.monitor_dir / f"{monitor_slug(monitor)}.txt", str(path.resolve())
-            )
-            atomic_write(
-                paths.monitor_dir / f"{monitor_slug(monitor)}-scheme.json",
-                __import__("json").dumps(scheme),
-            )
-        elif destination == "all":
-            _write_state_file(paths, "path.txt", str(path.resolve()))
-            _copy_to_thumbnail(source, paths)
-            # Truncate watched override files rather than unlinking them so QML
-            # file watches remain attached.
-            if paths.monitor_dir.is_dir():
-                for override in paths.monitor_dir.glob("*.txt"):
-                    try:
-                        override.write_text("", encoding="utf-8")
-                    except OSError:
-                        pass
-                for palette in paths.monitor_dir.glob("*-scheme.json"):
-                    atomic_write(palette, "{}")
-        else:  # global / primary
-            _write_state_file(paths, "path.txt", str(path.resolve()))
-            _write_state_file(paths, "current", str(path.resolve()))
-            _copy_to_thumbnail(source, paths)
-            for name in (f"{monitor_slug(services.primary_monitor)}.txt",
-                         f"{monitor_slug(services.primary_monitor)}-scheme.json"):
-                override = paths.monitor_dir / name
-                if override.exists():
-                    atomic_write(override, "{}" if name.endswith(".json") else "")
-    except OSError as exc:
+        with _wallpaper_lock(paths):
+            if destination == "monitor":
+                monitor = monitor or ""
+                pointer = paths.monitor_dir / f"{monitor_slug(monitor)}.txt"
+                palette = paths.monitor_dir / f"{monitor_slug(monitor)}-scheme.json"
+                files = [pointer, palette]
+            else:
+                overrides = list(paths.monitor_dir.glob("*.txt")) if destination == "all" else [
+                    paths.monitor_dir / f"{monitor_slug(services.primary_monitor)}.txt"]
+                palettes = list(paths.monitor_dir.glob("*-scheme.json")) if destination == "all" else [
+                    paths.monitor_dir / f"{monitor_slug(services.primary_monitor)}-scheme.json"]
+                files = [paths.wallpaper_dir / "path.txt", paths.wallpaper_dir / "current",
+                         paths.wallpaper_dir / "thumbnail.jpg", paths.scheme_file, *overrides, *palettes]
+            with _state_transaction(paths, files):
+                if destination == "monitor":
+                    atomic_write(pointer, str(path.resolve()))
+                    atomic_write(palette, __import__("json").dumps(scheme))
+                else:
+                    _write_state_file(paths, "path.txt", str(path.resolve()))
+                    if destination != "all":
+                        _write_state_file(paths, "current", str(path.resolve()))
+                    _copy_to_thumbnail(source, paths)
+                    for override in overrides:
+                        if override.exists():
+                            atomic_write(override, "")
+                    for palette in palettes:
+                        if palette.exists():
+                            atomic_write(palette, "{}")
+                    services.save_scheme(paths, scheme)
+            if destination != "monitor" or monitor == services.primary_monitor:
+                try:
+                    result["theme"] = services.theme_applier(scheme)
+                except Exception as exc:  # Theme failure does not roll back a committed wallpaper.
+                    print(f"zesti: theme apply: {exc}", file=sys.stderr)
+                    result["theme"] = [{"target": "apply", "ok": False, "error": str(exc)}]
+    except Exception as exc:
         result["error"] = f"could not write wallpaper state: {exc}"
         return result
 
-    if destination != "monitor":
-        services.save_scheme(paths, scheme)
-    if destination != "monitor" or monitor == services.primary_monitor:
-        try:
-            result["theme"] = services.theme_applier(scheme)
-        except Exception as exc:  # theme failure must not roll back wallpaper state
-            print(f"zesti: theme apply: {exc}", file=sys.stderr)
-            result["theme"] = [{"target": "apply", "ok": False, "error": str(exc)}]
-
     result["ok"] = True
     result["path"] = str(path.resolve())
+    return result
+
+
+def refresh_palettes(paths: Paths, services: WallpaperServices) -> dict:
+    try:
+        with _wallpaper_lock(paths):
+            return _refresh_palettes_locked(paths, services)
+    except OSError as exc:
+        return {"ok": False, "updated": 0, "error": f"could not refresh wallpaper palettes: {exc}"}
+
+
+def _refresh_palettes_locked(paths: Paths, services: WallpaperServices) -> dict:
+    """Regenerate active palettes without changing wallpaper paths or overrides.
+
+    Finish generation before writing schemes so unreadable wallpapers keep all
+    previous palettes. Empty monitor overrides are intentionally ignored.
+    """
+    result = {"ok": False, "updated": 0, "error": None}
+    try:
+        targets = []
+        global_path = effective_wallpaper(paths, None)
+        if global_path:
+            targets.append((paths.scheme_file, global_path))
+        if paths.monitor_dir.is_dir():
+            for override in sorted(paths.monitor_dir.glob("*.txt")):
+                value = override.read_text(encoding="utf-8").strip()
+                if value:
+                    targets.append((override.with_name(override.stem + "-scheme.json"), Path(value)))
+        generated = {}
+        pending = []
+        for destination, wallpaper in targets:
+            if wallpaper not in generated:
+                source = extract_palette_source(wallpaper, paths, services.run)
+                generated[wallpaper] = services.generate_palette(source, services.palette_settings, services.run)
+            pending.append((destination, generated[wallpaper]))
+        with _state_transaction(paths, [destination for destination, _ in pending]):
+            for destination, scheme in pending:
+                atomic_write(destination, __import__("json").dumps(scheme))
+        result["updated"] = len(pending)
+    except Exception as exc:
+        result["error"] = f"could not refresh wallpaper palettes: {exc}"
+        return result
+    primary_scheme = paths.monitor_dir / f"{monitor_slug(services.primary_monitor)}-scheme.json"
+    app_scheme = next((scheme for destination, scheme in pending if destination == primary_scheme), None)
+    if app_scheme is None:
+        app_scheme = next((scheme for destination, scheme in pending if destination == paths.scheme_file), None)
+    if app_scheme:
+        try:
+            result["theme"] = services.theme_applier(app_scheme)
+        except Exception as exc:
+            print(f"zesti: theme apply: {exc}", file=sys.stderr)
+            result["theme"] = [{"target": "apply", "ok": False, "error": str(exc)}]
+    result["ok"] = True
     return result

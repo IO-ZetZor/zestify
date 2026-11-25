@@ -13,6 +13,13 @@ from zesti.cli import build_parser, main
 
 
 class PathsTest(unittest.TestCase):
+    def test_home_fallback_uses_the_supplied_environment(self):
+        p = Paths.from_env({"HOME": "/tmp/isolated-user", "XDG_CONFIG_HOME": ""})
+        self.assertEqual(p.config_home, Path("/tmp/isolated-user/.config"))
+        self.assertEqual(p.data_home, Path("/tmp/isolated-user/.local/share"))
+        self.assertEqual(p.state_home, Path("/tmp/isolated-user/.local/state"))
+        self.assertEqual(p.cache_home, Path("/tmp/isolated-user/.cache"))
+
     def test_xdg_overrides_produce_zestify_paths(self):
         env = {
             "XDG_CONFIG_HOME": "/tmp/xc/config",

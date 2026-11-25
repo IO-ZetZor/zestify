@@ -22,7 +22,9 @@ Singleton {
     property real txRate: 0
     property real cpuTemp: 0
     property var gpuDevices: []
-    property string gpuStatus: "Detecting GPUs…"
+    property string gpuStatus: "GPU sampling paused"
+    property var gpuConsumers: []
+    readonly property bool gpuSamplingActive: running && gpuConsumers.length > 0
     property real batteryPercent: 0
     property string batteryTime: ""
     property var historyCpu: []
@@ -53,6 +55,23 @@ Singleton {
 
     function stop() {
         running = false;
+    }
+
+    function setGpuConsumer(consumer, active) {
+        const present = root.gpuConsumers.indexOf(consumer) >= 0;
+        if (present === active)
+            return;
+        const next = root.gpuConsumers.filter(item => item !== consumer);
+        if (active)
+            next.push(consumer);
+        if (!root.gpuConsumers.length && next.length) {
+            gpuRestartTimer.stop();
+            root._gpuRequested = true;
+            root.gpuStatus = "Detecting GPUs…";
+        } else if (!next.length) {
+            gpuRestartTimer.stop();
+        }
+        root.gpuConsumers = next;
     }
 
     function sample() {
@@ -133,7 +152,7 @@ Singleton {
     }
 
     function _sampleGpus() {
-        if (!root._gpuStarted || root._gpuPending)
+        if (!root.gpuSamplingActive || !root._gpuStarted || root._gpuPending)
             return;
         root._gpuPending = true;
         gpuMonitor.write("sample\n");
@@ -141,6 +160,8 @@ Singleton {
 
     function _onGpus(text) {
         root._gpuPending = false;
+        if (!root.gpuSamplingActive)
+            return;
         try {
             const devices = JSON.parse(text);
             if (!Array.isArray(devices))
@@ -162,10 +183,12 @@ Singleton {
         root._gpuStarted = false;
         root._gpuPending = false;
         root.gpuDevices = [];
-        if (root.running && root._gpuRequested) {
+        if (root.gpuSamplingActive && root._gpuRequested) {
             root._gpuRequested = false;
             root.gpuStatus = "GPU telemetry unavailable";
             gpuRestartTimer.restart();
+        } else if (!root.gpuSamplingActive) {
+            root.gpuStatus = "GPU sampling paused";
         }
     }
 
@@ -217,7 +240,7 @@ Singleton {
         id: gpuMonitor
         command: [Quickshell.env("PYTHON") || "python3",
             (Quickshell.env("ZESTIFY_SCRIPTS") || Quickshell.shellDir + "/../scripts") + "/gpu-monitor.py"]
-        running: root.running && root._gpuRequested
+        running: root.gpuSamplingActive && root._gpuRequested
         stdinEnabled: true
         stdout: SplitParser { onRead: data => root._onGpus(data) }
         onStarted: {

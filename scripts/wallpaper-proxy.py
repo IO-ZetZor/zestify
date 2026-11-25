@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -38,6 +40,8 @@ def key_for(source: Path, width: int, height: int, codec: str, crf: int, fps: fl
         str(crf),
         "%.6g" % fps,
     ])
+    if codec == "h264":
+        stamp += "|h264-yuv420p-v1"
     return hashlib.sha256(stamp.encode("utf-8")).hexdigest()
 
 
@@ -61,16 +65,46 @@ def probe_fps(path: Path) -> float | None:
         ], text=True, capture_output=True, timeout=30)
         stream = json.loads(result.stdout)["streams"][0]
         for entry in (stream.get("avg_frame_rate"), stream.get("r_frame_rate")):
-            numerator, _, denominator = str(entry or "").partition("/")
-            fps = float(numerator) / float(denominator or 1)
-            if fps > 0:
+            try:
+                numerator, _, denominator = str(entry or "").partition("/")
+                fps = float(numerator) / float(denominator or 1)
+            except (ValueError, ZeroDivisionError):
+                continue
+            if math.isfinite(fps) and fps > 0:
                 return fps
     except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, IndexError, ZeroDivisionError):
         pass
     return None
 
 
-def ensure(source: Path, width: int, height: int, codec: str = "h264", crf: int = 20) -> int:
+def cached_fps(source: Path) -> float | None:
+    stamp = source.stat()
+    key = hashlib.sha256(f"{source.resolve()}|{stamp.st_size}|{stamp.st_mtime_ns}".encode()).hexdigest()
+    metadata = cache_root() / ".probes" / (key + ".json")
+    try:
+        fps = json.loads(metadata.read_text())
+        if type(fps) in (int, float) and math.isfinite(fps) and fps > 0:
+            return fps
+    except (OSError, ValueError):
+        pass
+    fps = probe_fps(source)
+    if fps is not None:
+        temporary = None
+        try:
+            metadata.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode="w", dir=metadata.parent, delete=False) as output:
+                temporary = Path(output.name)
+                json.dump(fps, output)
+            temporary.replace(metadata)
+        except OSError:
+            pass  # An unwritable metadata cache must not prevent playback.
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+    return fps
+
+
+def ensure(source: Path, width: int, height: int, codec: str = "h264", crf: int = 20, max_fps: int = 24) -> int:
     if not source.is_file():
         return fail("source not found: %s" % source)
     if width <= 0 or height <= 0:
@@ -81,7 +115,9 @@ def ensure(source: Path, width: int, height: int, codec: str = "h264", crf: int 
         return fail("unsupported codec: %s" % codec)
     if crf < 0 or crf > 51:
         return fail("invalid CRF: %s" % crf)
-    out_fps = min(probe_fps(source) or 30.0, 30.0)
+    if type(max_fps) is not int or not 1 <= max_fps <= 60:
+        return fail("invalid maximum FPS: %s" % max_fps)
+    out_fps = min(cached_fps(source) or float(max_fps), float(max_fps))
     key = key_for(source, width, height, codec, crf, out_fps)
     target = cache_root() / key / ("%sx%s.mp4" % (width, height))
     if target.exists() and target.stat().st_size > 0:
@@ -95,6 +131,10 @@ def ensure(source: Path, width: int, height: int, codec: str = "h264", crf: int 
         "-vf", filter_graph, "-r", "%.6g" % out_fps, "-c:v", encoder, "-preset", "veryfast",
         "-crf", str(crf), "-an", "-movflags", "+faststart",
     ]
+    if codec == "h264":
+        # Hardware H.264 decoders commonly require 8-bit 4:2:0 input. Do not
+        # inherit High 10 / 4:4:4 from sources into the performance proxy.
+        command += ["-pix_fmt", "yuv420p"]
     if codec in ("h265", "hevc"):
         command += ["-tag:v", "hvc1"]
     command.append(str(temp))
@@ -124,9 +164,10 @@ def command_proxy(argv: list[str]) -> int:
     ensure_parser.add_argument("--height", required=True, type=int)
     ensure_parser.add_argument("--codec", default="h264", choices=["h264", "h265", "hevc"])
     ensure_parser.add_argument("--crf", default=20, type=int)
+    ensure_parser.add_argument("--max-fps", default=24, type=int)
     args = parser.parse_args(argv)
     if args.command == "ensure":
-        return ensure(Path(args.source).expanduser(), args.width, args.height, args.codec, args.crf)
+        return ensure(Path(args.source).expanduser(), args.width, args.height, args.codec, args.crf, args.max_fps)
     return fail("unknown proxy command")
 
 

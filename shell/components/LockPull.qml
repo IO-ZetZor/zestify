@@ -17,6 +17,8 @@ Item {
     property real settleTarget: 0
     property real pressY: 0
     property date now: new Date()
+    property Component wallpaper: null
+    property int handoffGeneration: 0
 
     readonly property real edgeHeight: Math.max(2, Math.min(6, 3 * uiScale))
     readonly property real triggerDistance: Math.min(height * 0.3, 180 * uiScale)
@@ -25,7 +27,7 @@ Item {
     readonly property bool ready: height > 0 && pull >= triggerDistance
     readonly property bool active: dragging || requestingLock || pull > 0 || settle.running
 
-    signal lockRequested()
+    signal lockRequested(var frame)
     signal lockTimedOut()
 
     clip: true
@@ -34,12 +36,24 @@ Item {
     Theme { id: fallbackTheme }
 
     function reset() {
+        handoffGeneration++;
         settle.stop();
         lockTimer.stop();
         dragging = false;
         requestingLock = false;
         pull = 0;
         handoffProgress = 0;
+    }
+
+    function handOff() {
+        const generation = handoffGeneration;
+        // Carry the already rendered background into the native lock's first
+        // frame while its own wallpaper and blur are still loading.
+        if (!background.grabToImage(result => {
+            if (root.requestingLock && generation === root.handoffGeneration)
+                root.lockRequested(result);
+        }))
+            lockRequested(null);
     }
 
     function cancel() {
@@ -89,7 +103,7 @@ Item {
         onFinished: {
             if (root.requestingLock) {
                 lockTimer.restart();
-                root.lockRequested();
+                root.handOff();
             }
         }
     }
@@ -111,18 +125,57 @@ Item {
         onTriggered: root.now = new Date()
     }
 
-    PillBody {
+    Item {
         id: curtain
         y: root.pull - height
         width: root.width
         height: root.height
-        cornerRadius: 24 * root.uiScale * (1 - root.handoffProgress)
-        // The handoff already animates the radius alongside the curtain.
-        animateCornerRadius: false
-        theme: root.theme || fallbackTheme
-        backgroundOpacity: root.backgroundOpacity
         visible: root.active
         clip: true
+
+        Item {
+            id: background
+            objectName: "lockPullBackground"
+            anchors.fill: parent
+
+            Rectangle {
+                anchors.fill: parent
+                color: root.theme ? root.theme.surface : fallbackTheme.surface
+                opacity: root.handoffProgress
+            }
+
+            Loader {
+                id: wallpaperLoader
+                objectName: "lockPullWallpaper"
+                anchors.fill: parent
+                active: root.active
+                sourceComponent: root.wallpaper
+            }
+
+            Loader {
+                objectName: "lockPullBlur"
+                anchors.fill: parent
+                active: root.active
+                opacity: root.handoffProgress
+                sourceComponent: Component {
+                    CachedBlur {
+                        sourceItem: wallpaperLoader
+                        sourceReady: wallpaperLoader.status === Loader.Ready && wallpaperLoader.item
+                            && (wallpaperLoader.item.ready === undefined || wallpaperLoader.item.ready)
+                        revision: wallpaperLoader.item && wallpaperLoader.item.revision !== undefined
+                            ? wallpaperLoader.item.revision : wallpaperLoader.item
+                    }
+                }
+            }
+
+            PillBody {
+                anchors.fill: parent
+                cornerRadius: 24 * root.uiScale * (1 - root.handoffProgress)
+                animateCornerRadius: false
+                theme: root.theme || fallbackTheme
+                backgroundOpacity: root.backgroundOpacity
+            }
+        }
 
         LockScreenFace {
             anchors.fill: parent

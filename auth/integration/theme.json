@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "fonts": {
+    "family": "sans-serif",
+    "clockFamily": "sans-serif",
+    "iconFamily": "sans-serif",
+    "file": "",
+    "clockFile": "",
+    "iconFile": ""
+  },
+  "colors": {
+    "text": "#e6e4f0",
+    "muted": "#abaab5",
+    "accent": "#bfc4ee",
+    "accentText": "#383e61",
+    "error": "#f97386",
+    "panel": "#e614151f",
+    "border": "#363846",
+    "input": "#0d0e15",
+    "button": "#222432",
+    "selection": "#bfc4ee"
+  },
+  "layout": {
+    "scale": 1,
+    "margin": 24,
+    "transparency": 0
+  },
+  "brand": {
+    "visible": true,
+    "text": "Z E S T I F Y",
+    "fontSize": 13,
+    "color": "#abaab5",
+    "letterSpacing": 0,
+    "position": {
+      "x": 0,
+      "y": 0,
+      "anchorX": 0,
+      "anchorY": 0,
+      "offsetX": 36,
+      "offsetY": 36
+    }
+  },
+  "welcome": {
+    "visible": true,
+    "text": "WELCOME HOME",
+    "fontSize": 11,
+    "color": "#abaab5",
+    "letterSpacing": 0,
+    "position": {
+      "x": 1,
+      "y": 0,
+      "anchorX": 1,
+      "anchorY": 0,
+      "offsetX": -36,
+      "offsetY": 36
+    }
+  },
+  "hint": {
+    "visible": true,
+    "text": "Enter to continue \u00b7 Esc to cancel",
+    "fontSize": 11,
+    "color": "#abaab5",
+    "letterSpacing": 0,
+    "position": {
+      "x": 0.5,
+      "y": 1,
+      "anchorX": 0.5,
+      "anchorY": 1,
+      "offsetX": 0,
+      "offsetY": -36
+    }
+  },
+  "clock": {
+    "visible": true,
+    "dateVisible": true,
+    "format": "HH:mm",
+    "dateFormat": "dddd, MMMM d",
+    "fontSize": 88,
+    "dateFontSize": 16,
+    "weight": 300,
+    "spacing": 12,
+    "alignment": "center",
+    "position": {
+      "x": 0.5,
+      "y": 0.25,
+      "anchorX": 0.5,
+      "anchorY": 0.5,
+      "offsetX": 0,
+      "offsetY": 0
+    }
+  },
+  "form": {
+    "position": {
+      "x": 0.5,
+      "y": 0.6,
+      "anchorX": 0.5,
+      "anchorY": 0.5,
+      "offsetX": 0,
+      "offsetY": 0
+    },
+    "width": 380,
+    "padding": 24,
+    "spacing": 14,
+    "radius": 28,
+    "borderWidth": 1,
+    "opacity": 1,
+    "titleSize": 22,
+    "textSize": 15,
+    "messageSize": 12,
+    "controlHeight": 48,
+    "controlRadius": 12,
+    "buttonHeight": 42,
+    "buttonRadius": 12,
+    "buttonSize": 14,
+    "iconSize": 20,
+    "iconSpacing": 10,
+    "title": "Sign in",
+    "verifyTitle": "Verify your identity",
+    "usernamePlaceholder": "Username",
+    "passwordPlaceholder": "Password",
+    "submitText": "Sign in",
+    "continueText": "Continue",
+    "waitingText": "Please wait\u2026",
+    "cancelText": "Cancel",
+    "defaultUser": "",
+    "defaultSession": "",
+    "showSession": true,
+    "showTitle": true,
+    "fieldOrder": "title,username,session,response,message,actions",
+    "titleAlignment": "left",
+    "buttonAlignment": "right"
+  },
+  "icons": {
+    "brand": {
+      "source": "",
+      "glyph": ""
+    },
+    "user": {
+      "source": "",
+      "glyph": "\u2659"
+    },
+    "session": {
+      "source": "",
+      "glyph": "\u25c8"
+    },
+    "password": {
+      "source": "",
+      "glyph": "\u26bf"
+    },
+    "submit": {
+      "source": "",
+      "glyph": "\u2192"
+    },
+    "cancel": {
+      "source": "",
+      "glyph": "\u00d7"
+    },
+    "dropdown": {
+      "source": "",
+      "glyph": "\u2304"
+    }
+  },
+  "background": {
+    "type": "gradient",
+    "source": "",
+    "fallback": "",
+    "fillMode": "crop",
+    "color": "#08090d",
+    "gradientTop": "#171a2b",
+    "gradientMiddle": "#0d0e17",
+    "gradientBottom": "#08090d",
+    "overlayColor": "#08090d",
+    "overlayOpacity": 0.25,
+    "opacity": 1,
+    "speed": 1,
+    "paused": false,
+    "pauseWhileAuthenticating": true,
+    "pauseWhenInactive": true
+  }
+}

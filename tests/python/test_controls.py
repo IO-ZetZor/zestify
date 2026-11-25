@@ -7,9 +7,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from zesti.paths import Paths
 from zesti.controls import volume, mic, brightness, config_command
+from zesti.cli import main
 
 
 class Result:
@@ -35,6 +37,14 @@ def make_runner(queue):
 
 
 class VolumeTest(unittest.TestCase):
+    def test_cli_dispatch_uses_the_control_runner_contract(self):
+        for argv, expected in [(["volume", "set", "75"], ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK", "75%"]),
+                               (["mic", "mute"], ["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE", "toggle"]),
+                               (["brightness", "up"], ["brightnessctl", "s", "5%+"])]:
+            with self.subTest(argv=argv), patch("zesti.controls._default_run", return_value=Result(3)) as run:
+                self.assertEqual(main(argv), 3)
+                run.assert_called_once_with(expected)
+
     def test_volume_up_down_mute_set(self):
         run, calls = make_runner([
             (0, ""), (0, ""), (0, ""), (0, ""),

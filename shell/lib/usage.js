@@ -28,3 +28,28 @@ function sampleAt(values, capacity, fraction) {
         - (capacity - samples.length);
     return index >= 0 && index < samples.length ? samples[index] : null;
 }
+
+// Include adjacent segments and the endpoint dot when samples change. Rolling
+// histories may move every point; their damage must cover the entire plot.
+function dirtySpan(before, after, width, padding) {
+    let left = width;
+    let right = 0;
+    let changed = false;
+    const count = Math.max(before.length, after.length);
+    for (let i = 0; i < count; i++) {
+        const a = before[i];
+        const b = after[i];
+        if (a && b && a.x === b.x && a.y === b.y)
+            continue;
+        changed = true;
+        for (let j = Math.max(0, i - 1); j <= Math.min(count - 1, i + 1); j++) {
+            for (const point of [before[j], after[j]]) {
+                if (!point) continue;
+                left = Math.min(left, point.x);
+                right = Math.max(right, point.x);
+            }
+        }
+    }
+    return changed ? { x: Math.max(0, Math.floor(left - padding)),
+        right: Math.min(width, Math.ceil(right + padding)) } : null;
+}

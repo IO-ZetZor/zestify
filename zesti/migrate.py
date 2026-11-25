@@ -1,6 +1,6 @@
-"""Copy-only migration of Caelestia state into Zestify-owned state.
+"""Copy-only migration of legacy shell state into Zestify-owned state.
 
-Migration never moves or deletes Caelestia data. It copies the current global
+Migration never moves or deletes legacy data. It copies the current global
 and per-monitor wallpaper paths plus the current scheme into Zestify state,
 best-effort regenerates the palette from the source wallpaper, and writes a
 schema marker *last* so an interrupted run is safe to retry.
@@ -54,7 +54,8 @@ def _marker_path(paths: Paths) -> Path:
 def _already_migrated(paths: Paths) -> bool:
     try:
         data = json.loads(_marker_path(paths).read_text(encoding="utf-8"))
-        return isinstance(data, dict) and data.get("schema") == MIGRATION_SCHEMA
+        return (isinstance(data, dict) and data.get("schema") == MIGRATION_SCHEMA
+                and data.get("completed") is True)
     except (OSError, json.JSONDecodeError):
         return False
 
@@ -67,7 +68,7 @@ def migrate(
     force: bool = False,
     generate: PaletteGenerator | None = None,
 ) -> MigrationResult:
-    """Copy Caelestia wallpaper/state into Zestify state.
+    """Copy legacy wallpaper/state into Zestify state.
 
     Source files are only ever read. On any failure the previously valid
     destination state is left untouched and the schema marker is not written,

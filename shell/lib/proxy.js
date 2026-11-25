@@ -20,7 +20,19 @@ function resolutionSize(resolution, width, height) {
         width: Number.isFinite(Number(width)) && Number(width) > 0 ? Math.round(Number(width)) : 0,
         height: Number.isFinite(Number(height)) && Number(height) > 0 ? Math.round(Number(height)) : 0
     };
-    const match = String(resolution || "").trim().match(/^(\d+)x(\d+)$/);
+    const setting = String(resolution || "").trim();
+    if ((setting === "1080p" || setting === "720p") && fallback.width > 0 && fallback.height > 0) {
+        const longEdge = setting === "1080p" ? 1920 : 1280;
+        const shortEdge = setting === "1080p" ? 1080 : 720;
+        const landscape = fallback.width >= fallback.height;
+        const scale = Math.min(1, (landscape ? longEdge : shortEdge) / fallback.width,
+            (landscape ? shortEdge : longEdge) / fallback.height);
+        return {
+            width: Math.max(2, Math.floor(fallback.width * scale / 2) * 2),
+            height: Math.max(2, Math.floor(fallback.height * scale / 2) * 2)
+        };
+    }
+    const match = setting.match(/^(\d+)x(\d+)$/);
     if (!match)
         return fallback;
     const fixedWidth = Number(match[1]);

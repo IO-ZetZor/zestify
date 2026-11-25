@@ -5,15 +5,20 @@ import QtQuick.Layouts
 import Quickshell
 import "../components"
 
-SurfaceFrame {
+Item {
     id: root
 
+    property var theme
+    property real s: 1
     property var screen
     property var motion
     property var session
     property int confirmHoldMs: 700
 
-    title: "Power"
+    signal closeRequested()
+
+    implicitWidth: 504
+    implicitHeight: 248
 
     function runAction(action) {
         root.closeRequested();
@@ -38,141 +43,89 @@ SurfaceFrame {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 10 * root.s
+        anchors.margins: 10 * root.s
+        spacing: 8 * root.s
 
-        Text {
-            Layout.fillWidth: true
-            text: "Take a break or end your session"
-            color: root.theme.dim
-            font.family: root.theme.fontFamily
-            font.pixelSize: root.theme.fs.body * root.s
-            elide: Text.ElideRight
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
+        Item {
+            id: heading
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: Math.max(portrait.width, caption.implicitWidth)
+            Layout.preferredHeight: 116 * root.s
             Layout.fillHeight: true
-            spacing: 8 * root.s
+            Layout.minimumHeight: 0
+            Layout.maximumHeight: 116 * root.s
 
-            PowerAction {
+            PowerPortrait {
+                id: portrait
                 theme: root.theme
                 motion: root.motion
                 s: root.s
-                onCloseRequested: root.closeRequested()
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                glyph: "󰌾"
-                label: "Lock"
-                description: "Keep your session private"
-                action: "lock"
-                onTriggered: root.runAction(action)
-            }
-
-            PowerAction {
-                theme: root.theme
-                motion: root.motion
-                s: root.s
-                onCloseRequested: root.closeRequested()
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                glyph: "󰒲"
-                label: "Sleep"
-                description: "Resume where you left off"
-                action: "sleep"
-                onTriggered: root.runAction(action)
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8 * root.s
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.theme.border
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(92 * root.s,
+                                Math.max(0, heading.height - caption.implicitHeight - 8 * root.s))
+                height: width
             }
 
             Text {
-                text: "END SESSION"
-                color: root.theme.faint
-                font.family: root.theme.monoFont
-                font.pixelSize: root.theme.fs.label * root.s
-                font.letterSpacing: 1 * root.s
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.theme.border
+                id: caption
+                objectName: "powerRemCaption"
+                anchors.top: portrait.bottom
+                anchors.topMargin: 8 * root.s
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Take a break Master."
+                color: root.theme.dim
+                font.family: root.theme.fontFamily
+                font.pixelSize: root.theme.fs.body * root.s
+                horizontalAlignment: Text.AlignHCenter
             }
         }
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 8 * root.s
+            Layout.preferredHeight: 80 * root.s
+            Layout.minimumHeight: 80 * root.s
+            Layout.maximumHeight: 80 * root.s
+            spacing: 4 * root.s
 
-            PowerAction {
-                theme: root.theme
-                motion: root.motion
-                s: root.s
-                onCloseRequested: root.closeRequested()
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                glyph: "󰍃"
-                label: "Log out"
-                description: "Return to sign in"
-                action: "logout"
-                confirm: true
-                destructive: true
-                holdMs: root.confirmHoldMs
-                onTriggered: root.runAction(action)
-            }
-
-            PowerAction {
-                theme: root.theme
-                motion: root.motion
-                s: root.s
-                onCloseRequested: root.closeRequested()
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                glyph: "󰜉"
-                label: "Restart"
-                description: "Reboot your computer"
-                action: "restart"
-                confirm: true
-                destructive: true
-                holdMs: root.confirmHoldMs
-                onTriggered: root.runAction(action)
-            }
-
-            PowerAction {
-                theme: root.theme
-                motion: root.motion
-                s: root.s
-                onCloseRequested: root.closeRequested()
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                glyph: "󰐥"
-                label: "Shut down"
-                description: "Power off your computer"
-                action: "shutdown"
-                confirm: true
-                destructive: true
-                holdMs: root.confirmHoldMs
-                onTriggered: root.runAction(action)
+            Repeater {
+                model: [
+                    {action: "lock", glyph: "󰌾", label: "Lock"},
+                    {action: "sleep", glyph: "󰒲", label: "Sleep"},
+                    {action: "logout", glyph: "󰍃", label: "Log out"},
+                    {action: "restart", glyph: "󰜉", label: "Restart"},
+                    {action: "shutdown", glyph: "󰐥", label: "Shut down"}
+                ]
+                delegate: PowerAction {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumWidth: 0
+                    Layout.preferredWidth: 1
+                    theme: root.theme
+                    motion: root.motion
+                    s: root.s
+                    compact: true
+                    glyph: modelData.glyph
+                    label: modelData.label
+                    action: modelData.action
+                    confirm: action !== "lock" && action !== "sleep"
+                    destructive: confirm
+                    holdMs: root.confirmHoldMs
+                    onCloseRequested: root.closeRequested()
+                    onTriggered: action => root.runAction(action)
+                }
             }
         }
 
         Text {
             Layout.fillWidth: true
-            text: "Hold to confirm session actions  ·  Release to cancel  ·  Esc to close"
+            text: "Hold to confirm  ·  Esc to close"
             color: root.theme.faint
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
             font.family: root.theme.fontFamily
-            font.pixelSize: root.theme.fs.label * root.s
+            font.pixelSize: root.theme.fs.meta * root.s
         }
     }
 }

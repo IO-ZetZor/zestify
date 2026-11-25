@@ -6,3 +6,4 @@ tests/tmp/
 .superpowers/brainstorm/
 freebuff-chat-*.md
 session-*.md
+auth/build/

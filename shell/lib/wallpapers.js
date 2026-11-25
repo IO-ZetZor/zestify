@@ -1,5 +1,10 @@
 .pragma library
 
+function localUrl(path) {
+    const value = String(path || "");
+    return value.startsWith("/") ? "file://" + value.split("/").map(encodeURIComponent).join("/") : value;
+}
+
 function pick(globalPath, monitorPaths, screenName) {
     if (monitorPaths && monitorPaths[screenName])
         return monitorPaths[screenName];

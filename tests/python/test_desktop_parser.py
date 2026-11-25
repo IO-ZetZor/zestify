@@ -25,7 +25,7 @@ class DesktopParserTest(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Totals: 9 passed, 0 failed", result.stdout)
+        self.assertIn("Totals: 10 passed, 0 failed", result.stdout)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy-only migration of Caelestia state into Zestify-owned state.
+"""Copy-only migration of legacy shell state into Zestify-owned state.
 
 Entry point for ``zesti migrate``. Delegates to :mod:`zesti.migrate`.
 """
@@ -27,8 +27,8 @@ def _default_run(cmd, **kwargs):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="zesti-migrate-state")
     parser.add_argument("--force", action="store_true", help="re-copy without skipping")
-    parser.add_argument("--source-state", help="Caelestia wallpaper state dir")
-    parser.add_argument("--source-config", help="Caelestia config file")
+    parser.add_argument("--source-state", help="legacy shell wallpaper state dir")
+    parser.add_argument("--source-config", help="legacy shell config file")
     args = parser.parse_args(argv)
 
     paths = Paths.from_env(os.environ)

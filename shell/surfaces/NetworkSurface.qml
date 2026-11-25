@@ -16,7 +16,7 @@ SurfaceFrame {
     title: "Network"
 
     readonly property var devices: Networking.devices.values
-    readonly property var wifiDevice: {
+    property var wifiDevice: {
         for (let i = 0; i < devices.length; i++) {
             if (devices[i].type === DeviceType.Wifi)
                 return devices[i];
@@ -51,6 +51,28 @@ SurfaceFrame {
     property var pendingNetwork: null
     property string password: ""
     property string errorText: ""
+    property var scanDevice: null
+    property bool ownsScan: false
+
+    function releaseScan() {
+        if (scanDevice && ownsScan)
+            scanDevice.scannerEnabled = false;
+        scanDevice = null;
+        ownsScan = false;
+    }
+
+    function syncScan() {
+        if (scanDevice === wifiDevice)
+            return;
+        releaseScan();
+        cancelPassword();
+        scanDevice = wifiDevice;
+        if (scanDevice) {
+            ownsScan = !scanDevice.scannerEnabled;
+            scanDevice.scannerEnabled = true;
+        }
+    }
+    onWifiDeviceChanged: syncScan()
 
     function securityName(network) {
         return WifiSecurityType.toString(network.security);
@@ -94,15 +116,8 @@ SurfaceFrame {
         root.password = "";
     }
 
-    Component.onCompleted: {
-        if (root.wifiDevice)
-            root.wifiDevice.scannerEnabled = true;
-    }
-
-    Component.onDestruction: {
-        if (root.wifiDevice)
-            root.wifiDevice.scannerEnabled = false;
-    }
+    Component.onCompleted: syncScan()
+    Component.onDestruction: releaseScan()
 
     component ToggleSwitch: Rectangle {
         id: toggle

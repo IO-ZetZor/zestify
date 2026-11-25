@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "fonts": { "family": "monospace", "clockFamily": "monospace" },
+  "colors": {
+    "text": "#eeeeee", "muted": "#999999", "accent": "#eeeeee",
+    "accentText": "#111111", "panel": "transparent", "border": "#505050",
+    "input": "#171717", "button": "#303030"
+  },
+  "brand": { "text": "zestify / login", "fontSize": 12 },
+  "welcome": { "visible": false },
+  "clock": { "fontSize": 64, "dateFontSize": 13 },
+  "form": { "width": 340, "radius": 0, "borderWidth": 0, "controlRadius": 0, "buttonRadius": 0 },
+  "icons": {
+    "user": { "glyph": "" }, "session": { "glyph": "" }, "password": { "glyph": "" },
+    "submit": { "glyph": "" }, "cancel": { "glyph": "" }
+  },
+  "background": { "gradientTop": "#101010", "gradientMiddle": "#101010", "gradientBottom": "#101010", "overlayOpacity": 0 }
+}

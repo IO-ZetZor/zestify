@@ -90,8 +90,8 @@ started with `zesti shell start`.
 - [x] The installer does not disturb unmarked user Hyprland Lua lines.
 - [x] The installer links both `zesti` and `zestify`, runs copy-only migration,
   and starts the shell via `zesti shell start`.
-- [x] The uninstaller removes both CLI links, does not restore or restart
-  Caelestia, and preserves config/state unless `--purge`.
+- [x] The uninstaller removes both CLI links, does not restore or restart the
+  previous shell, and preserves config/state unless `--purge`.
 
 ## Performance
 

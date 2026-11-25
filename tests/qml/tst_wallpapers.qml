@@ -19,6 +19,13 @@ TestCase {
         compare(WallpapersLib.filterItems(null, "", "all").length, 0);
     }
 
+    function test_local_urls_encode_filename_delimiters() {
+        compare(WallpapersLib.localUrl("/tmp/My #wallpaper?100%.png"),
+            "file:///tmp/My%20%23wallpaper%3F100%25.png");
+        compare(WallpapersLib.localUrl("file:///tmp/already%20encoded.png"), "file:///tmp/already%20encoded.png");
+        compare(WallpapersLib.localUrl(""), "");
+    }
+
     function test_prefers_monitor_override() {
         compare(WallpapersLib.pick("/global.mp4", { "HDMI-A-1": "/secondary.mp4" }, "HDMI-A-1"), "/secondary.mp4");
     }

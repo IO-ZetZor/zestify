@@ -6,25 +6,41 @@ import "../../shell/surfaces"
 Item {
     id: fixture
     width: 760
-    height: 600
+    height: 320
     property bool showingPower: false
     property var actions: []
     property var wallpaperCalls: []
+    property var previews: []
+    property int previewClears: 0
     readonly property var collection: [
         {path: "/mountain.jpg", name: "Mountain Dawn.jpg", thumb: "", isVideo: false},
         {path: "/rain.mp4", name: "Mountain Rain.mp4", thumb: "", isVideo: true},
-        {path: "/ocean.png", name: "Ocean.png", thumb: "", isVideo: false}
+        {path: "/ocean.png", name: "Ocean.png", thumb: "", isVideo: false},
+        {path: "/forest.png", name: "Forest.png", thumb: "", isVideo: false},
+        {path: "/dusk.png", name: "Dusk.png", thumb: "", isVideo: false},
+        {path: "/dawn.png", name: "Dawn.png", thumb: "", isVideo: false}
     ]
     Theme { id: fixtureTheme }
+    Component {
+        id: startupStudioComponent
+        WallpaperStudio {
+            theme: fixtureTheme
+            wallpapers: wallpaperService
+            screen: ({name: "eDP-1"})
+        }
+    }
     QtObject {
         id: wallpaperService
         property var items: fixture.collection
         property bool busy: false
         property bool listing: false
         property string lastError: ""
+        property string previewError: ""
         property string current: "/mountain.jpg"
         function currentFor(monitor) { return current; }
         function refresh() {}
+        function preview(item, monitor) { fixture.previews = fixture.previews.concat([{path: item.path, monitor: monitor}]); }
+        function clearPreview(monitor) { fixture.previewClears++; }
         function apply(path, monitor) {
             fixture.wallpaperCalls = fixture.wallpaperCalls.concat([{path: path, monitor: monitor}]);
             busy = true;
@@ -41,6 +57,7 @@ Item {
         folder: "~/Pictures/Wallpapers"
         visible: !fixture.showingPower
     }
+    SignalSpy { id: applying; target: studio; signalName: "applyRequested" }
     Row {
         id: power
         visible: fixture.showingPower
@@ -55,6 +72,7 @@ Item {
                 action: modelData
                 label: modelData
                 confirm: modelData !== "lock"
+                compact: true
                 holdMs: 160
                 onTriggered: action => fixture.actions = fixture.actions.concat([action])
             }
@@ -76,88 +94,183 @@ Item {
         }
         function init() {
             fixture.width = 760;
-            fixture.height = 600;
+            fixture.height = 320;
             fixture.showingPower = false;
             fixture.actions = [];
             fixture.wallpaperCalls = [];
+            applying.clear();
             studio.s = 1;
+            studio.browsed = false;
             studio.selectedPath = "";
-            studio.query = "";
-            studio.mediaFilter = "all";
-            studio.allMonitors = false;
+            studio.previewEnabled = true;
+            fixture.previews = [];
+            fixture.previewClears = 0;
             wallpaperService.items = fixture.collection;
             wallpaperService.busy = false;
             wallpaperService.listing = false;
             wallpaperService.lastError = "";
+            wallpaperService.current = "/mountain.jpg";
+            mouseMove(fixture, -5, -5);
             wait(30);
+            studio.openAtCurrent();
         }
-        function test_search_filters_and_keyboard_selection() {
-            const search = findChild(studio, "wallpaperSearch");
-            const grid = findChild(studio, "wallpaperGrid");
-            mouseClick(search);
-            for (const character of "mountain") keyClick(character);
-            compare(studio.filteredItems.length, 2);
-            keyClick(Qt.Key_Down);
+        function test_circular_collection_keyboard_preview_and_apply() {
+            const orbit = findChild(studio, "wallpaperOrbit");
+            compare(orbit.count, fixture.collection.length);
             compare(studio.selectedPath, "/mountain.jpg");
+            verify(orbit.activeFocus);
             keyClick(Qt.Key_Right);
             compare(studio.selectedPath, "/rain.mp4");
+            compare(fixture.wallpaperCalls.length, 0);
+            compare(fixture.previews[0].monitor, "eDP-1");
             keyClick(Qt.Key_Return);
-            compare(fixture.wallpaperCalls.length, 1);
+            compare(applying.count, 1);
             compare(fixture.wallpaperCalls[0].monitor, "eDP-1");
-            verify(!findChild(studio, "applyWallpaper").enabled);
-            keyClick(Qt.Key_Left);
-            compare(studio.selectedPath, "/rain.mp4");
+            keyClick(Qt.Key_Right);
+            compare(studio.selectedPath, "/rain.mp4", "Applying must block further selection");
             keyClick(Qt.Key_Return);
-            compare(fixture.wallpaperCalls.length, 1);
+            compare(applying.count, 1, "Busy Enter must not restart dismissal");
             wallpaperService.busy = false;
-            studio.mediaFilter = "images";
-            compare(studio.filteredItems.length, 1);
-            studio.query = "missing";
-            compare(studio.filteredItems.length, 0);
-            compare(grid.count, 0);
+            keyClick(Qt.Key_Return, Qt.ShiftModifier);
+            compare(fixture.wallpaperCalls[1].monitor, "all");
         }
-        function test_target_and_removed_selection() {
-            studio.selectedPath = "/ocean.png";
-            mouseClick(findChild(studio, "allMonitors"));
-            verify(studio.allMonitors);
-            mouseClick(findChild(studio, "applyWallpaper"));
-            compare(fixture.wallpaperCalls[0].monitor, "all");
-            wallpaperService.busy = false;
-            wallpaperService.items = [fixture.collection[0]];
-            verify(!studio.canApply);
-            studio.applySelected(true);
-            compare(fixture.wallpaperCalls.length, 1);
-        }
-        function test_thumbnail_background_is_translucent_and_hover_is_accented() {
-            const card = findChild(studio, "wallpaperCard0");
+        function test_mouse_selection_does_not_apply_or_change_on_hover() {
+            const card = findChild(studio, "wallpaperCard1");
             verify(card !== null);
-            mouseMove(fixture, 750, 590);
-            wait(200);
-            verify(card.color.a < 0.1);
-            const normal = String(card.color);
             mouseMove(card, 20, 20);
-            wait(200);
-            verify(String(card.color) !== normal);
-            verify(card.color.a > 0.15 && card.color.a < 0.25);
-            mouseMove(fixture, 750, 590);
-            wait(200);
-            compare(String(card.color), normal);
+            compare(studio.selectedPath, "/mountain.jpg");
+            mouseClick(card, 20, 20);
+            compare(studio.selectedPath, "/rain.mp4");
+            compare(fixture.wallpaperCalls.length, 0);
+            const apply = findChild(studio, "wallpaperApply");
+            mouseClick(apply);
+            compare(fixture.wallpaperCalls[0].path, "/rain.mp4");
         }
-        function test_empty_loading_error_and_responsive_columns() {
-            fixture.width = 480;
-            wait(30);
-            compare(studio.columns, 2);
-            fixture.width = 320;
-            wait(30);
-            compare(studio.columns, 1);
+        function test_wheel_browses_and_wraps() {
+            mouseWheel(studio, 100, 100, 0, -120, Qt.NoButton);
+            compare(studio.selectedPath, "/rain.mp4");
+            mouseWheel(studio, 100, 100, 120, 0, Qt.NoButton);
+            compare(studio.selectedPath, "/mountain.jpg");
+            keyClick(Qt.Key_Left);
+            compare(studio.selectedPath, "/dawn.png");
+            keyClick(Qt.Key_Right);
+            compare(studio.selectedPath, "/mountain.jpg");
+        }
+        function test_close_removed_selection_and_loading_errors() {
+            studio.selectIndex(2);
+            wallpaperService.items = [fixture.collection[0]];
+            compare(studio.selectedPath, "");
+            verify(!studio.canApply);
+            verify(fixture.previewClears > 0);
             wallpaperService.items = [];
             wallpaperService.listing = true;
-            verify(!findChild(studio, "randomWallpaper").enabled);
-            verify(!studio.canApply);
-            wallpaperService.listing = false;
+            verify(findChild(studio, "wallpaperStatus").visible);
+            verify(findChild(studio, "wallpaperStatus").text.includes("Finding"));
             wallpaperService.lastError = "Could not read wallpaper folder";
-            compare(studio.error, wallpaperService.lastError);
-            verify(!studio.canApply);
+            compare(findChild(studio, "wallpaperStatus").text, wallpaperService.lastError);
+            studio.previewEnabled = false;
+            const cleared = fixture.previewClears;
+            verify(cleared > 0);
+            studio.selectIndex(0);
+            compare(fixture.wallpaperCalls.length, 0);
+        }
+        function test_applied_opens_selected_and_reopening_tracks_new_current() {
+            wallpaperService.current = "/dusk.png";
+            wait(30);
+            compare(studio.items[0].path, "/dusk.png");
+            compare(studio.selectedPath, "/dusk.png");
+            studio.selectIndex(1);
+            const selected = studio.selectedPath;
+            wallpaperService.current = "/rain.mp4";
+            wait(30);
+            compare(studio.items[0].path, "/dusk.png");
+            compare(studio.selectedPath, selected);
+            studio.previewEnabled = false;
+            studio.previewEnabled = true;
+            wait(30);
+            compare(studio.selectedPath, "/rain.mp4");
+        }
+        function test_late_collection_and_large_collection_are_bounded() {
+            wallpaperService.items = [];
+            wallpaperService.current = "/ocean.png";
+            studio.previewEnabled = false;
+            studio.previewEnabled = true;
+            wait(30);
+            wallpaperService.items = fixture.collection;
+            wait(30);
+            compare(studio.selectedPath, "/ocean.png");
+            const many = [];
+            for (let i = 0; i < 500; i++) many.push({path: "/wall-" + i + ".png", name: "Wallpaper " + i, thumb: ""});
+            wallpaperService.items = many;
+            wait(30);
+            const orbit = findChild(studio, "wallpaperOrbit");
+            compare(orbit.count, 500);
+            compare(orbit.pathItemCount, 9);
+            studio.selectIndex(499);
+            keyClick(Qt.Key_Right);
+            compare(studio.selectedPath, "/wall-0.png");
+        }
+        function test_circle_layout_fits_narrow_and_scaled_sizes() {
+            const hero = findChild(studio, "wallpaperHero");
+            for (const size of [Qt.size(320, 420), Qt.size(760, 680), Qt.size(950, 800)]) {
+                fixture.width = size.width;
+                fixture.height = size.height;
+                studio.s = 1.5;
+                wait(30);
+                compare(hero.width, hero.height);
+                const point = hero.mapToItem(studio, 0, 0);
+                verify(point.x >= 0 && point.y >= 0);
+                verify(point.x + hero.width <= studio.width && point.y + hero.height <= studio.height);
+                const apply = findChild(studio, "wallpaperApplyAll");
+                const bottom = apply.mapToItem(studio, apply.width, apply.height);
+                verify(bottom.x <= studio.width && bottom.y <= studio.height);
+            }
+        }
+        function test_grid_labels_and_buttons_are_centered() {
+            for (const size of [Qt.size(320, 420), Qt.size(760, 700), Qt.size(950, 800)]) {
+                fixture.width = size.width;
+                fixture.height = size.height;
+                studio.s = 1.5;
+                wait(60);
+                for (const name of ["wallpaperGrid", "wallpaperName", "wallpaperApplyButtons", "wallpaperHelp"]) {
+                    const item = findChild(studio, name);
+                    const center = item.mapToItem(studio, item.width / 2, 0);
+                    fuzzyCompare(center.x, studio.width / 2, 0.5);
+                }
+                const first = findChild(studio, "wallpaperCard0");
+                const help = findChild(studio, "wallpaperHelp");
+                const top = first.mapToItem(studio, 0, 0).y;
+                const bottom = help.mapToItem(studio, 0, help.height).y;
+                fuzzyCompare((top + bottom) / 2, studio.height / 2, 4);
+            }
+        }
+        function test_thumbnails_fade_when_entering_both_edges() {
+            fixture.width = 760;
+            fixture.height = 700;
+            const many = [];
+            for (let i = 0; i < 30; i++) many.push({path: "/entry-" + i + ".png", name: "Entry " + i,
+                thumb: String(Qt.resolvedUrl("../fixtures/album-cover.svg")), isVideo: false});
+            wallpaperService.items = many;
+            wait(200);
+            studio.selectIndex(0);
+            const orbit = findChild(studio, "wallpaperOrbit");
+            tryCompare(findChild(studio, "wallpaperCard0"), "opacity", 1);
+            const enteringIndex = orbit.pathItemCount;
+            studio.moveSelection(1);
+            tryVerify(() => {
+                const item = findChild(studio, "wallpaperCard" + enteringIndex);
+                return item !== null && item.onOrbit;
+            });
+            const entering = findChild(studio, "wallpaperCard" + enteringIndex);
+            verify(entering.opacity < 0.95, "New edge thumbnail appeared fully opaque");
+            tryCompare(entering, "opacity", 1, 1200);
+            tryCompare(findChild(studio, "wallpaperCard1"), "opacity", 1);
+            studio.moveSelection(-1);
+            tryVerify(() => {
+                const item = findChild(studio, "wallpaperCard0");
+                return item !== null && item.onOrbit && item.opacity > 0 && item.opacity < 0.95;
+            }, 1200);
+            tryCompare(findChild(studio, "wallpaperCard0"), "opacity", 1, 1200);
         }
         function test_power_click_and_short_hold_cancel() {
             fixture.showingPower = true;

@@ -6,14 +6,14 @@
 
 ## Intent
 
-Add three related polish features to Zestify, inspired by Caelestia shell:
-1. **Transparency layers** — backdrop blur and translucent backgrounds on the pill and surfaces, like Caelestia.
+Add three related polish features to Zestify, inspired by the legacy shell:
+1. **Transparency layers** — backdrop blur and translucent backgrounds on the pill and surfaces, like the legacy shell.
 2. **Configuration module** — an in-shell UI surface to view and toggle all `Config.qml` options (not just editing `config.json` by hand).
 3. **Fullscreen fade** — when a window goes fullscreen and the pill hides/shows, animate opacity instead of an instant snap.
 
 ## Goals
 
-- Pill and open surfaces look like Caelestia: semi-transparent card with backdrop blur behind it.
+- Pill and open surfaces look like the legacy shell: semi-transparent card with backdrop blur behind it.
 - User can open a "Settings" surface from the pill to see and toggle every `Config.qml` option with live preview.
 - Hiding/showing the pill on fullscreen is a smooth opacity fade, not a snap.
 - All existing tests keep passing; no new QML errors.
@@ -22,12 +22,12 @@ Add three related polish features to Zestify, inspired by Caelestia shell:
 
 - Not rewriting the entire shell theme system.
 - Not adding new config keys beyond what `Config.qml` already exposes.
-- Not importing Caelestia QML modules or code.
+- Not importing the legacy shell QML modules or code.
 
 ## Constraints
 
 - One Quickshell process (existing constraint).
-- No Caelestia QML module imports.
+- No legacy shell QML module imports.
 - Keep `session-3aaf49e8-ec47-4e47-865d-e71533db6ec9.md` untracked and uncommitted.
 - Must run on both eDP-1 (1920x1200 landscape) and HDMI-A-1 (768x1366 portrait logical).
 - All existing `Config.qml` sections remain: bar, theme, wallpaper, system, notifications, osd, power, session.
@@ -39,14 +39,14 @@ Add three related polish features to Zestify, inspired by Caelestia shell:
 **Pill background (`PillBody.qml`):**
 - Currently: gradient (`cardTop`/`cardBot`) + `border.width: 1` (recently set to 0).
 - Change: keep gradient but add per-section alpha so the pill is translucent. Use `theme.transparency` (0.88 default) from `Config.qml` as the base opacity. The gradient stops get `withAlpha(cardTop, theme.transparency)` and `withAlpha(cardBot, theme.transparency)`.
-- Add `layer.enabled: true` + `MultiEffect` blur when `theme.transparency < 1.0`, matching Caelestia's `CoverArt.qml` pattern (`layer.effect: MultiEffect { blurMax: ... }`). Blur strength scales with transparency: lower transparency = stronger blur.
+- Add `layer.enabled: true` + `MultiEffect` blur when `theme.transparency < 1.0`, matching the legacy shell's `CoverArt.qml` pattern (`layer.effect: MultiEffect { blurMax: ... }`). Blur strength scales with transparency: lower transparency = stronger blur.
 
 **SurfaceFrame (`shell/surfaces/SurfaceFrame.qml`):**
 - Currently: `surfaceLow` color at alpha 0.45, border width 0.
 - Change: keep the translucent background but add optional `MultiEffect` blur behind the surface content when transparency is enabled, same pattern as pill.
 
 **Hyprland blur rule (optional):**
-- Caelestia sends `Hypr.extras.batchMessage([rule.arg("blur").arg(trEnabled), ...])` to enable Hyprland's native window blur. Zestify's `PanelWindow` could issue a blur rule on the pill window when transparency < 1.0. This is QML-side via `Hyprland.extras` if available; verify API exists in the installed Quickshell. If not available, rely on QML `MultiEffect` blur only.
+- the legacy shell sends `Hypr.extras.batchMessage([rule.arg("blur").arg(trEnabled), ...])` to enable Hyprland's native window blur. Zestify's `PanelWindow` could issue a blur rule on the pill window when transparency < 1.0. This is QML-side via `Hyprland.extras` if available; verify API exists in the installed Quickshell. If not available, rely on QML `MultiEffect` blur only.
 
 ### Part 2: Configuration Module
 

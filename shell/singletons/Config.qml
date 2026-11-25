@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import "../lib/merge.js" as Merge
 import "../lib/config.js" as ConfigLib
+import "../lib/monitors.js" as MonitorLib
 import "."
 
 Singleton {
@@ -69,6 +70,23 @@ Singleton {
 
     readonly property QtObject monitor: QtObject {
         readonly property string primary: root.value("monitor.primary", "eDP-1")
+        readonly property string activePrimary: MonitorLib.primaryName(Quickshell.screens, primary)
+        readonly property string secondaryMode: root.value("monitor.secondaryMode", "focus")
+        readonly property var overrides: root.value("monitor.overrides", {})
+
+        function modeFor(screenName) {
+            return MonitorLib.widgetMode(screenName, activePrimary, secondaryMode, overrides);
+        }
+    }
+
+    readonly property QtObject focus: QtObject {
+        readonly property string task: root.value("focus.task", "")
+        readonly property string mode: root.value("focus.mode", "countdown") === "stopwatch" ? "stopwatch" : "countdown"
+        readonly property int minutes: {
+            const value = Number(root.value("focus.minutes", 25));
+            return Number.isFinite(value) ? Math.max(1, Math.min(240, Math.round(value))) : 25;
+        }
+        readonly property bool dnd: root.value("focus.dnd", false) === true
     }
 
     readonly property QtObject bar: QtObject {
@@ -77,13 +95,12 @@ Singleton {
         readonly property real opacity: root.value("bar.opacity", 1.0)
         readonly property real scale: root.value("bar.scale", 1.0)
         readonly property bool showTray: root.value("bar.showTray", true)
-        readonly property bool showTitle: root.value("bar.showTitle", true)
         readonly property string trayOn: root.value("bar.trayOn", "primary")
-        readonly property string titleOn: root.value("bar.titleOn", "focused")
     }
 
     readonly property QtObject theme: QtObject {
         readonly property string mode: root.value("theme.mode", "dark")
+        readonly property bool smartScheme: root.value("theme.smartScheme", true)
         readonly property real transparency: root.value("theme.transparency", 0.88)
         readonly property string fontFamily: root.value("theme.font", "SF Pro")
         readonly property string monoFont: root.value("theme.mono", "SF Mono")
@@ -104,11 +121,18 @@ Singleton {
             readonly property string resolution: root.value("wallpaper.proxy.resolution", "monitor")
             readonly property string codec: root.value("wallpaper.proxy.codec", "h264")
             readonly property int crf: root.value("wallpaper.proxy.crf", 20)
+            readonly property int maxFps: {
+                const fps = Number(root.value("wallpaper.proxy.maxFps", 24));
+                return Number.isFinite(fps) ? Math.max(1, Math.min(60, Math.round(fps))) : 24;
+            }
         }
     }
 
     readonly property QtObject system: QtObject {
-        readonly property int pollInterval: root.value("system.pollInterval", 1000)
+        readonly property int pollInterval: {
+            const interval = Number(root.value("system.pollInterval", 1000));
+            return Number.isFinite(interval) ? Math.max(250, Math.min(60000, interval)) : 1000;
+        }
         readonly property int graphSeconds: root.value("system.graphSeconds", 60)
     }
 

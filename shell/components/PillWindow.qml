@@ -14,18 +14,22 @@ PanelWindow {
     property string wallpaperFolder: ""
     property real uiScale: 1
     property real topGap: 8
-    property bool showTitle: true
+    property bool showRest: true
+    property bool partyVisible: false
     property bool focusRequested: false
-
+    property bool expandedCanvasHeld: false
+    readonly property bool fullCanvas: pill.expanded || expandedCanvasHeld
     readonly property alias pill: pill
 
     screen: targetScreen
+    visible: showRest || fullCanvas
     color: "transparent"
     exclusionMode: ExclusionMode.Normal
-    exclusiveZone: pill && pill.fullscreen ? 0 : topGap + (pill ? pill.restHeight : 0)
+    exclusiveZone: !showRest || (pill && (pill.fullscreen || pill.partyOn))
+        ? 0 : topGap + (pill ? pill.restHeight : 0)
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "zestify-pill"
-    WlrLayershell.keyboardFocus: pill && pill.surface.length > 0 && !pill.fullscreen
+    WlrLayershell.keyboardFocus: pill && pill.surface.length > 0 && !pill.fullscreenHidden
         ? (root.focusRequested ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
         : WlrKeyboardFocus.None
 
@@ -33,11 +37,14 @@ PanelWindow {
     // their masks. Acquire focus for keyboard-opened surfaces briefly, then
     // retain focus with OnDemand so the screen-edge gestures remain reachable.
     function acquireFocus() {
-        root.focusRequested = pill.surface.length > 0 && !pill.fullscreen;
+        root.focusRequested = pill.surface.length > 0 && !pill.fullscreenHidden;
         if (root.focusRequested) focusPulse.restart();
         else focusPulse.stop();
     }
-    Component.onCompleted: root.acquireFocus()
+    Component.onCompleted: {
+        root.expandedCanvasHeld = pill.expanded;
+        root.acquireFocus();
+    }
     Timer {
         id: focusPulse
         interval: 100
@@ -45,8 +52,25 @@ PanelWindow {
     }
     Connections {
         target: pill
-        function onSurfaceChanged() { root.acquireFocus(); }
+        function onSurfaceChanged() {
+            root.acquireFocus();
+            if (pill.expanded) {
+                releaseCanvas.stop();
+                root.expandedCanvasHeld = true;
+            } else if (root.expandedCanvasHeld) {
+                releaseCanvas.restart();
+            }
+        }
         function onFullscreenChanged() { root.acquireFocus(); }
+    }
+
+    Timer {
+        id: releaseCanvas
+        interval: (root.motion ? root.motion.morph : 420) + 32
+        onTriggered: {
+            if (pill.morphing) restart();
+            else root.expandedCanvasHeld = false;
+        }
     }
 
     anchors {
@@ -54,11 +78,16 @@ PanelWindow {
         left: true
         right: true
     }
+    // Keep the native canvas stable. Hyprland can scale the previous buffer
+    // into new layer bounds before Qt commits the resized buffer, producing
+    // a one-frame jump even with compositor layer animations disabled.
+    // Animate the child pill only; its input region still follows its bounds.
+    implicitWidth: targetScreen ? targetScreen.width : 0
     implicitHeight: targetScreen ? targetScreen.height : 0
 
-    mask: pill && pill.surface.length > 0
-        ? fullMask
-        : (pill && pill.fullscreen ? emptyMask : pillMask)
+    mask: !root.visible || (pill && (pill.fullscreenHidden || pill.partyOn))
+        ? emptyMask
+        : (pill && pill.surface.length > 0 ? fullMask : pillMask)
 
     Region {
         id: emptyMask
@@ -76,11 +105,11 @@ PanelWindow {
 
     Region {
         id: fullMask
-        // Leave the drawer's narrow edge strip reachable while expanded.
+        // Keep all drawer edge strips reachable while expanded.
         x: Math.max(3, Math.min(6, Math.round(4 * (pill ? pill.s : root.uiScale))))
         y: 0
-        width: targetScreen ? Math.max(0, targetScreen.width - x) : 0
-        height: targetScreen ? targetScreen.height : 0
+        width: targetScreen ? Math.max(0, targetScreen.width - 2 * x) : 0
+        height: targetScreen ? Math.max(0, targetScreen.height - x) : 0
     }
 
     // While a surface is open the window is not masked, so this catches clicks
@@ -112,7 +141,7 @@ PanelWindow {
             wallpaperFolder: root.wallpaperFolder
             uiScale: root.uiScale
             topGap: root.topGap
-            showTitle: root.showTitle
+            partyVisible: root.partyVisible
             windowObject: root
         }
 

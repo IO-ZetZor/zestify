@@ -55,7 +55,7 @@ PanelWindow {
         spacing: 8 * root.s
 
         Repeater {
-            model: Notifications.popups
+            model: root.enabled ? Notifications.popups : []
 
             delegate: NotificationCard {
                 required property var modelData

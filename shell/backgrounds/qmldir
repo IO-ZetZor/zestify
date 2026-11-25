@@ -1,3 +1,6 @@
 BackgroundWindow 1.0 BackgroundWindow.qml
 WallpaperImage 1.0 WallpaperImage.qml
 VideoWallpaper 1.0 VideoWallpaper.qml
+WallpaperPreview 1.0 WallpaperPreview.qml
+WallpaperPreviewFrame 1.0 WallpaperPreviewFrame.qml
+WallpaperTransition 1.0 WallpaperTransition.qml

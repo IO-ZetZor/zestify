@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "fonts": { "family": "sans-serif", "clockFamily": "serif" },
+  "colors": {
+    "text": "#fff2e6", "muted": "#cab7a9", "accent": "#eac29f",
+    "accentText": "#38291f", "panel": "#e6191718", "border": "#5c4540",
+    "input": "#171315", "button": "#3a2b28"
+  },
+  "brand": { "text": "ZESTIFY", "letterSpacing": 5 },
+  "welcome": { "text": "YOUR SPACE. YOUR WAY.", "color": "#cab7a9" },
+  "clock": {
+    "fontSize": 124, "dateFontSize": 18,
+    "position": { "x": 0.70, "y": 0.48, "anchorX": 0.5, "anchorY": 0.5 }
+  },
+  "form": {
+    "width": 400, "padding": 32, "radius": 20, "spacing": 18,
+    "title": "Welcome back", "titleSize": 26,
+    "position": { "x": 0.10, "y": 0.50, "anchorX": 0, "anchorY": 0.5 }
+  },
+  "hint": { "color": "#cab7a9", "position": { "x": 0.70 } },
+  "background": {
+    "gradientTop": "#41303a", "gradientMiddle": "#211a20", "gradientBottom": "#0f1016",
+    "overlayOpacity": 0.08
+  }
+}

@@ -15,6 +15,7 @@ Rectangle {
     property string action
     property bool confirm: false
     property bool destructive: false
+    property bool compact: false
     property int holdMs: 700
     property real progress: 0
     property bool holding: false
@@ -79,10 +80,12 @@ Rectangle {
     color: tile.active
         ? tile.theme.withAlpha(tile.actionColor, 0.16)
         : (tileHover.hovered
-            ? tile.theme.withAlpha(tile.theme.cream, 0.06)
-            : tile.theme.tileBg)
+            ? tile.theme.withAlpha(tile.compact ? tile.theme.accent : tile.theme.cream,
+                                   tile.compact ? 0.08 : 0.06)
+            : tile.compact ? "transparent" : tile.theme.tileBg)
     border.width: 1
-    border.color: tile.active || tile.activeFocus ? tile.actionColor : tile.theme.border
+    border.color: tile.active || tile.activeFocus ? tile.actionColor
+        : tile.compact ? "transparent" : tile.theme.border
     Behavior on color { ColorAnimation { duration: tile.motion ? tile.motion.fast : 140 } }
     Behavior on border.color { ColorAnimation { duration: tile.motion ? tile.motion.fast : 140 } }
 
@@ -141,22 +144,23 @@ Rectangle {
 
     ColumnLayout {
         anchors.centerIn: parent
-        width: parent.width - 20 * tile.s
+        width: parent.width - (tile.compact ? 4 : 20) * tile.s
         spacing: 6 * tile.s
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            implicitWidth: (tile.confirm ? 36 : 44) * tile.s
+            implicitWidth: (tile.compact ? 36 : tile.confirm ? 36 : 44) * tile.s
             implicitHeight: implicitWidth
             radius: 12 * tile.s
-            color: tile.theme.withAlpha(tile.actionColor, 0.10)
+            color: tile.compact ? "transparent" : tile.theme.withAlpha(tile.actionColor, 0.10)
 
             Text {
                 anchors.centerIn: parent
                 text: tile.glyph
-                color: tile.actionColor
+                color: tile.compact && !tile.active && !tileHover.hovered && !tile.activeFocus
+                    ? tile.theme.dim : tile.actionColor
                 font.family: tile.theme.iconFont
-                font.pixelSize: (tile.confirm ? 19 : 23) * tile.s
+                font.pixelSize: (tile.compact ? 22 : tile.confirm ? 19 : 23) * tile.s
             }
         }
 
@@ -173,6 +177,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
+            visible: !tile.compact && tile.description.length > 0
             text: tile.description
             color: tile.theme.dim
             horizontalAlignment: Text.AlignHCenter
@@ -183,7 +188,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            visible: tile.confirm
+            visible: tile.confirm && !tile.compact
             text: tile.holding ? "Keep holding…" : "Hold to confirm"
             color: tile.holding ? tile.actionColor : tile.theme.faint
             horizontalAlignment: Text.AlignHCenter

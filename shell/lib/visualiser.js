@@ -1,8 +1,45 @@
 .pragma library
 
+// The normal visualiser keeps its byte protocol. Party packets carry fixed-gain
+// bins and acquisition timestamps separately from the normalized display data.
+function parseFrame(line, count, timestamped) {
+    if (timestamped) {
+        let frame;
+        try { frame = JSON.parse(line); } catch (error) { return null; }
+        if (!frame || frame.version !== 1 || frame.fixedGain !== true
+            || !Array.isArray(frame.levels) || frame.levels.length !== count
+            || !Number.isFinite(frame.time) || frame.time < 0
+            || !Number.isFinite(frame.emittedAt) || frame.emittedAt < 0
+            || !Number.isInteger(frame.sequence) || frame.sequence < 0)
+            return null;
+        for (const level of frame.levels) {
+            if (!Number.isFinite(level) || level < 0 || level > 1)
+                return null;
+        }
+        return frame;
+    }
+    const parts = line.split(";");
+    if (parts.length !== count)
+        return null;
+    const levels = [];
+    for (const part of parts) {
+        const level = Number(part);
+        if (!Number.isFinite(level) || part.trim() === "")
+            return null;
+        levels.push(Math.max(0, Math.min(1, level / 255)));
+    }
+    return {levels: levels};
+}
+
+function displayLevels(reference, levels, dt) {
+    const peak = levels.reduce((maximum, level) => Math.max(maximum, level), 0);
+    const scale = Math.max(0.02, peak, (reference || 0.24) * Math.exp(-dt / 4000));
+    return {reference: scale, values: levels.map(level => Math.min(1, level / scale))};
+}
+
 // Exponential interpolation used by the pill visualiser.
 //
-// Caelestia drives its bars with alpha = 1 - exp(-dt / tau) where
+// The reference visualiser drives its bars with alpha = 1 - exp(-dt / tau) where
 // tau = animationDuration / 3. That gives a fast attack and a natural,
 // non-overshooting decay instead of the bouncy spring it used before.
 function advance(current, target, dtMs, durationMs) {

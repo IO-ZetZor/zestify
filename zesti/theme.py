@@ -22,7 +22,7 @@ from typing import Callable, Mapping
 
 from zesti.paths import Paths, atomic_write
 from zesti import ROOT
-from zesti import gtk_theme, zen
+from zesti import dolphin, gtk_theme, zen
 
 
 _PLACEHOLDER = re.compile(r"(#?)\{([A-Za-z][A-Za-z0-9_]*)\}")
@@ -88,6 +88,7 @@ def theme_targets(paths: Paths, config: Mapping[str, object], data_dir: Path | N
         "colors": (paths.config_home / "kitty/zestify-colors.conf", "kitty"),
         "gtk": (paths.config_home / "zestify/theme/gtk.css", "gtk"),
         "qt": (paths.config_home / "qtengine/zestify.colors", "qtengine"),
+        "dolphin": (paths.config_home / "zestify/theme/dolphin.qss", "dolphin"),
         "fuzzel": (paths.config_home / "fuzzel/fuzzel.ini", "ini"),
         "cava": (paths.config_home / "cava/config", "ini"),
         "spicetify": (paths.config_home / "spicetify/Themes/zestify/color.ini", "spicetify"),
@@ -101,6 +102,7 @@ def theme_targets(paths: Paths, config: Mapping[str, object], data_dir: Path | N
                 targets[f.stem] = ThemeTarget(
                         name=f.stem,
                         enabled=(zen.configured(paths) if f.stem == "zen" else
+                                 (paths.config_home / "zestify/theme/dolphin-launch").is_file() if f.stem == "dolphin" else
                                  f.stem != "spicetify" or (paths.config_home / "spicetify/config-xpui.ini").is_file()),
                         template_path=f,
                         output=output,
@@ -304,8 +306,11 @@ def _apply_spicetify(target: ThemeTarget, rendered: str, paths: Paths, run: Call
 
 
 def _apply_target(target: ThemeTarget, rendered: str, paths: Paths, run: Callable, mode: str) -> dict | None:
-    if target.renderer not in ("template", "kitty", "gtk", "qtengine", "ini", "spicetify", "zen"):
+    if target.renderer not in ("template", "kitty", "gtk", "qtengine", "ini", "spicetify", "zen", "dolphin"):
         raise ThemeError(f"unknown renderer: {target.renderer}")
+    if target.renderer == "dolphin":
+        dolphin.apply(target.output, rendered, paths, _update_config)
+        return
     if target.renderer == "spicetify":
         _apply_spicetify(target, rendered, paths, run)
         return

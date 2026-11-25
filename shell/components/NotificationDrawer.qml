@@ -7,6 +7,7 @@ Item {
     property var motion
     property real s: 1
     property real topInset: 8 * s
+    property real bottomInset: 8 * s
     property real backgroundOpacity: 1
     property bool dragging: false
     property bool opened: false
@@ -190,7 +191,7 @@ Item {
         x: 0
         y: root.topInset
         width: root.edgeWidth
-        height: Math.max(0, root.height - y)
+        height: Math.max(0, root.height - y - root.bottomInset)
         preventStealing: true
         enabled: !root.opened && !root.settling
         cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.SizeHorCursor

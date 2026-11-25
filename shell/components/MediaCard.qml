@@ -16,6 +16,9 @@ RowLayout {
 
     readonly property var player: root.players ? root.players.active : null
 
+    signal coverActivated()
+    signal partyRequested()
+
     LyricsProvider {
         id: lyrics
         player: root.player
@@ -42,6 +45,8 @@ RowLayout {
             source: root.player ? root.player.trackArtUrl || "" : ""
             playing: root.player && root.player.isPlaying
             active: root.active && !(root.motion && root.motion.calm)
+            onClicked: root.coverActivated()
+            onLongPressed: root.partyRequested()
         }
 
         RowLayout {
@@ -185,7 +190,7 @@ RowLayout {
 
         // Quickshell's Mpris position does not update reactively while a track
         // plays; poll it so the seek bar and elapsed time keep progressing.
-        // Mirrors Caelestia's Details.qml (500 ms media update interval).
+        // Mirrors the reference player (500 ms media update interval).
         Timer {
             interval: 500
             running: root.active && root.visible && root.player && root.player.isPlaying

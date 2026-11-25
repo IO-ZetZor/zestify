@@ -1,5 +1,6 @@
 import QtQuick
 import QtMultimedia
+import "../lib/wallpapers.js" as WallpapersLib
 
 Item {
     id: root
@@ -24,7 +25,7 @@ Item {
         videoOutput: output
         loops: MediaPlayer.Infinite
         playbackRate: 1
-        source: root.source.length > 0 ? "file://" + root.source : ""
+        source: WallpapersLib.localUrl(root.source)
         audioOutput: AudioOutput {
             muted: root.muted
         }
@@ -35,8 +36,8 @@ Item {
             root.sync();
         }
         onMediaStatusChanged: {
-            if (mediaStatus === MediaPlayer.LoadedMedia && root.shouldDecode && root.playing)
-                play();
+            if (mediaStatus === MediaPlayer.LoadedMedia)
+                root.sync();
         }
         onPositionChanged: {
             if (!root.hasFirstFrame && position > 0)
@@ -50,7 +51,7 @@ Item {
     }
 
     function sync() {
-        if (!root.source.length)
+        if (!root.source.length || root.failed)
             return;
         if ((root.shouldDecode && root.playing) || !root.hasFirstFrame)
             player.play();
@@ -60,7 +61,10 @@ Item {
 
     Timer {
         interval: 1500
-        running: root.source.length > 0 && root.shouldDecode && root.playing && !root.hasFirstFrame
+        running: root.source.length > 0 && !root.hasFirstFrame
+            && (player.mediaStatus === MediaPlayer.LoadedMedia
+                || player.mediaStatus === MediaPlayer.BufferingMedia
+                || player.mediaStatus === MediaPlayer.BufferedMedia)
         onTriggered: root.hasFirstFrame = true
     }
 

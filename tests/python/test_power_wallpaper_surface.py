@@ -28,7 +28,8 @@ class PowerWallpaperSurfaceTest(unittest.TestCase):
                 "XDG_CACHE_HOME": str(temporary / "cache"),
                 "XDG_RUNTIME_DIR": str(runtime),
                 "QT_QPA_PLATFORM": "offscreen",
-                "QT_QUICK_BACKEND": "software",
+                "QT_QUICK_BACKEND": "rhi",
+                "QSG_RHI_BACKEND": "opengl",
                 "POWER_WALLPAPER_PREVIEW": str(previews),
             })
             result = subprocess.run(
@@ -38,7 +39,8 @@ class PowerWallpaperSurfaceTest(unittest.TestCase):
             output = result.stdout + result.stderr
             self.assertEqual(result.returncode, 0, output)
             self.assertIn("POWER WALLPAPER PASS:", output)
-            for error in ("POWER WALLPAPER FAIL:", "TypeError", "ReferenceError", "binding loop"):
+            for error in ("POWER WALLPAPER FAIL:", "TypeError", "ReferenceError", "binding loop",
+                          "Unable to assign [undefined] to bool"):
                 self.assertNotIn(error, output)
             for phase in range(5):
                 for panel in ("power", "wallpaper"):

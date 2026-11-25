@@ -38,7 +38,7 @@ class InstallerTest(unittest.TestCase):
         )
         write(self.home / ".config" / "hypr" / "hyprland.lua", 'require("conf.binds")\n')
         for name in (
-            "qs", "ffmpeg", "hyprlock", "jq", "cava",
+            "qs", "ffmpeg", "jq", "cava",
             "brightnessctl", "wpctl", "systemctl", "pkill",
         ):
             self.stub(name)
@@ -159,7 +159,8 @@ class InstallerTest(unittest.TestCase):
 package.path = os.getenv("HOME") .. "/.config/hypr/?.lua;" .. package.path
 local bindings = { ["SUPER + Escape"] = "old lock", ["SUPER + P"] = "caelestia screenshot",
                    ["SUPER + SHIFT + D"] = "keep scratchpad" }
-hl = { dsp = { exec_cmd = function(cmd) return cmd end },
+hl = { config = function(options) assert(options.misc.allow_session_lock_restore == true) end,
+       dsp = { exec_cmd = function(cmd) return cmd end },
        unbind = function(key) bindings[key] = nil end,
        bind = function(key, cmd) assert(bindings[key] == nil); bindings[key] = cmd end }
 local first = require("conf.zestify")
@@ -217,7 +218,7 @@ print("START\\t" .. first.command("shell start"))
         self.assertFalse((self.home / ".local/state/zestify").exists())
         self.assertFalse((self.home / ".cache/zestify").exists())
 
-    def test_migration_copies_state_without_caelestia(self):
+    def test_migration_copies_state_without_legacy_shell(self):
         state = self.home / ".local/state/caelestia/wallpaper"
         write(state / "path.txt", "/wallpapers/global.png\n")
         write(state / "monitors/eDP-1.txt", "/wallpapers/primary.png\n")

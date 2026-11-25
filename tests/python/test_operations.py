@@ -6,6 +6,7 @@ Injects fake process runners and git so no real repository or desktop is used.
 import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,20 +56,15 @@ class DoctorTest(unittest.TestCase):
         self.temp.cleanup()
 
     def test_doctor_separates_required_and_optional(self):
-        def run(cmd, **kwargs):
-            # qs present, matugen missing
-            if cmd[0] in ("qs", "python3", "ffmpeg", "hyprlock", "brightnessctl", "wpctl"):
-                return Result(0, "", "")
-            return Result(1, "", "not found")
-        report = doctor(self.paths, run)
+        lookup = lambda tool: "/bin/" + tool if tool in ("qs", "python3", "ffmpeg", "brightnessctl", "wpctl") else None
+        with patch("subprocess.run", side_effect=AssertionError("doctor must not launch tools")):
+            report = doctor(self.paths, lookup=lookup)
         self.assertIsInstance(report, DoctorReport)
         self.assertEqual(report["required_missing"], [])
         self.assertIn("matugen", report["optional_missing"])
 
     def test_doctor_json(self):
-        def run(cmd, **kwargs):
-            return Result(0, "", "")
-        report = doctor(self.paths, run, json_output=True)
+        report = doctor(self.paths, lookup=lambda tool: "/bin/" + tool, json_output=True)
         self.assertIsInstance(report, str)
         data = json.loads(report)
         self.assertIn("required", data)
@@ -82,9 +78,9 @@ class RunRepoScriptTest(unittest.TestCase):
         lock.write_text("#!/usr/bin/env python3\nimport sys\nprint(sys.argv[1:])\n")
         lock.chmod(0o755)
         run, calls = make_runner([(0, "ok", "")])
-        rc = run_repo_script("lock", ["--config-only"], repo, run)
+        rc = run_repo_script("lock", ["--wait"], repo, run)
         self.assertEqual(rc, 0)
-        self.assertEqual(calls[0][1:3], ["--config-only"])
+        self.assertEqual(calls[0][1:3], ["--wait"])
 
 
 class InstallTest(unittest.TestCase):
@@ -128,10 +124,28 @@ class UpdateTest(unittest.TestCase):
             "is_dirty": lambda: False,
             "is_detached": lambda: False,
             "has_upstream": lambda: True,
+            "shell_was_running": lambda: False,
         }
         rc = update(self.repo, check_only=False, services=services)
         self.assertEqual(rc, 0)
         self.assertTrue(any("--ff-only" in c for c in commands))
+        self.assertEqual(commands[-1], [str(self.repo / "install.sh"), "--no-start"])
+
+    def test_update_propagates_installer_failure_without_restart(self):
+        restarted = []
+        run, calls = make_runner([(0, ""), (7, "")])
+        services = {"run": run, "is_attached": lambda: True, "is_dirty": lambda: False,
+                    "is_detached": lambda: False, "has_upstream": lambda: True,
+                    "shell_was_running": lambda: True, "restart_shell": lambda: restarted.append(True)}
+        self.assertEqual(update(self.repo, services=services), 7)
+        self.assertEqual(restarted, [])
+
+    def test_update_restarts_only_a_previously_running_shell(self):
+        run, calls = make_runner([(0, ""), (0, "")])
+        services = {"run": run, "is_attached": lambda: True, "is_dirty": lambda: False,
+                    "is_detached": lambda: False, "has_upstream": lambda: True,
+                    "shell_was_running": lambda: True, "restart_shell": lambda: 9}
+        self.assertEqual(update(self.repo, services=services), 9)
 
     def test_update_dirty_refused_without_reset(self):
         commands = []
@@ -148,6 +162,34 @@ class UpdateTest(unittest.TestCase):
         rc = update(self.repo, check_only=False, services=services)
         self.assertNotEqual(rc, 0)
         self.assertFalse(any(c[:2] == ["git", "pull"] for c in commands))
+
+
+class RealGitUpdateTest(unittest.TestCase):
+    def test_checks_actual_dirty_detached_and_upstream_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            def git(*args):
+                return subprocess.run(["git", "-C", directory, *args], check=True,
+                                      text=True, capture_output=True)
+            git("init", "--initial-branch=main")
+            (repo / "file").write_text("initial")
+            git("add", "file")
+            git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "initial")
+            git("update-ref", "refs/remotes/origin/main", "HEAD")
+            git("config", "remote.origin.url", directory)
+            git("config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+            git("branch", "--set-upstream-to=origin/main")
+            self.assertEqual(update(repo, check_only=True), 0)
+            (repo / "untracked").write_text("keep this user work")
+            self.assertEqual(update(repo, check_only=True), 1)
+            self.assertEqual((repo / "untracked").read_text(), "keep this user work")
+            (repo / "untracked").unlink()
+            git("checkout", "--detach")
+            self.assertEqual(update(repo, check_only=True), 1)
+            git("checkout", "main")
+            git("branch", "--unset-upstream")
+            self.assertEqual(update(repo, check_only=True), 1)
+            self.assertEqual(update(repo / "missing", check_only=True), 1)
 
 
 if __name__ == "__main__":
